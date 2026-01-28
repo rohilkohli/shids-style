@@ -1,1 +1,0 @@
-# shids-style
