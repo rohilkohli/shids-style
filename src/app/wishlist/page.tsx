@@ -1,0 +1,76 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import CartDrawer from "../components/CartDrawer";
+import { getProductPrice, useCommerceStore } from "../lib/store";
+import { formatCurrency } from "../lib/utils";
+
+export default function WishlistPage() {
+  const { wishlistItems, addToCart } = useCommerceStore();
+  const [showCart, setShowCart] = useState(false);
+
+  const totalItems = useMemo(() => wishlistItems.length, [wishlistItems]);
+
+  return (
+    <main className="min-h-screen bg-[color:var(--background)]">
+      <section className="py-10 sm:py-12">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Wishlist</h1>
+              <p className="text-sm text-gray-500">Saved items: {totalItems}</p>
+            </div>
+          </div>
+
+          {wishlistItems.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-gray-100 bg-white p-6 text-sm text-gray-600">
+              Your wishlist is empty. Save items to shop later.
+            </div>
+          ) : (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {wishlistItems.map((product) => {
+                const { sale, compareAt } = getProductPrice(product);
+                return (
+                  <div key={product.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <Link href={`/products/${product.slug}`}>
+                      <div className="aspect-[4/3] overflow-hidden rounded-xl bg-gray-50">
+                        <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                      </div>
+                    </Link>
+                    <div className="mt-4 space-y-2">
+                      <Link href={`/products/${product.slug}`} className="text-sm font-semibold text-gray-900 hover:underline">
+                        {product.name}
+                      </Link>
+                      <div className="text-xs text-gray-500">{product.category}</div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-semibold text-gray-900">{formatCurrency(sale)}</span>
+                        {compareAt !== sale && <span className="text-xs text-gray-400 line-through">{formatCurrency(compareAt)}</span>}
+                      </div>
+                      <button
+                        className="w-full rounded-full btn-primary px-4 py-2 text-xs font-medium transition"
+                        onClick={() => {
+                          addToCart({ productId: product.id, quantity: 1 });
+                          setShowCart(true);
+                        }}
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <CartDrawer
+        isOpen={showCart}
+        onOpen={() => setShowCart(true)}
+        onClose={() => setShowCart(false)}
+        hideTrigger
+      />
+    </main>
+  );
+}

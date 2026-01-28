@@ -1,0 +1,295 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getProductPrice, useCommerceStore } from "../lib/store";
+import { formatCurrency } from "../lib/utils";
+import CartDrawer from "../components/CartDrawer";
+
+export default function ShippingPage() {
+  const router = useRouter();
+  const { cart, products, user } = useCommerceStore();
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "",
+  });
+  const [message, setMessage] = useState<string | null>(null);
+  const [showCart, setShowCart] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setForm((prev) => ({
+        ...prev,
+        fullName: prev.fullName || user.name,
+        email: prev.email || user.email,
+        phone: prev.phone || (user.phone ?? ""),
+      }));
+    }
+    const stored = window.localStorage.getItem("shids-style/shipping");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { email?: string; phone?: string; name?: string; address?: string };
+        setForm((prev) => ({
+          ...prev,
+          fullName: prev.fullName || parsed.name || "",
+          email: prev.email || parsed.email || "",
+          phone: prev.phone || parsed.phone || "",
+        }));
+      } catch {
+        // ignore invalid storage
+      }
+    }
+  }, [user]);
+
+  const subtotal = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      const product = products.find((p) => p.id === item.productId);
+      if (!product) return sum;
+      const { sale } = getProductPrice(product);
+      return sum + sale * item.quantity;
+    }, 0);
+  }, [cart, products]);
+
+  const handleSubmit = () => {
+    setMessage(null);
+    if (!form.email.trim() || !form.phone.trim()) {
+      setMessage("Email and contact number are required.");
+      return;
+    }
+    if (!form.addressLine1.trim() || !form.city.trim() || !form.state.trim() || !form.postalCode.trim()) {
+      setMessage("Please fill in all required address fields.");
+      return;
+    }
+
+    const fullAddress = [
+      form.addressLine1,
+      form.addressLine2,
+      `${form.city}, ${form.state}`,
+      form.postalCode,
+      form.country || "India",
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    window.localStorage.setItem(
+      "shids-style/shipping",
+      JSON.stringify({
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        name: form.fullName.trim() || "Guest",
+        address: fullAddress,
+      })
+    );
+
+    router.push("/payment");
+  };
+
+  if (cart.length === 0) {
+    return (
+      <main className="min-h-screen bg-[color:var(--background)]">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
+          <h1 className="text-3xl font-bold text-gray-900">Shipping Details</h1>
+          <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
+          <Link
+            href="/shop"
+            className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Shop Products
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[color:var(--background)]">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Shipping Details</h1>
+            <p className="text-xs sm:text-sm text-gray-500">Step 1 of 2</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 text-xs text-gray-500">
+          <span className="rounded-full bg-black text-white px-3 py-1">Shipping</span>
+          <span className="h-px w-6 bg-gray-200" />
+          <span className="rounded-full border border-gray-200 px-3 py-1">Payment</span>
+        </div>
+
+        <div className="mt-6 sm:mt-8 grid gap-6 lg:grid-cols-[1.6fr_0.9fr]">
+          <form
+            className="rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-6 glass-card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSubmit();
+            }}
+          >
+            <div className="space-y-1">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Contact</h2>
+              <p className="text-xs text-gray-500">We will send updates about your order here.</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-medium text-gray-700">
+                Full Name
+                <input
+                  autoComplete="name"
+                  placeholder="Rahul Sharma"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.fullName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Email <span className="text-red-500">*</span>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@email.com"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.email}
+                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700 sm:col-span-2">
+                Contact Number <span className="text-red-500">*</span>
+                <input
+                  type="tel"
+                  required
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="+91 98765 43210"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.phone}
+                  onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Shipping Address</h2>
+              <p className="text-xs text-gray-500">Enter the address where you want your order delivered.</p>
+            </div>
+
+            <label className="text-sm font-medium text-gray-700">
+              Address Line 1 <span className="text-red-500">*</span>
+              <input
+                required
+                autoComplete="address-line1"
+                placeholder="House No, Street, Area"
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                value={form.addressLine1}
+                onChange={(e) => setForm((prev) => ({ ...prev, addressLine1: e.target.value }))}
+              />
+            </label>
+
+            <label className="text-sm font-medium text-gray-700">
+              Address Line 2
+              <input
+                autoComplete="address-line2"
+                placeholder="Apartment, suite, landmark"
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                value={form.addressLine2}
+                onChange={(e) => setForm((prev) => ({ ...prev, addressLine2: e.target.value }))}
+              />
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-medium text-gray-700">
+                City <span className="text-red-500">*</span>
+                <input
+                  required
+                  autoComplete="address-level2"
+                  placeholder="Mumbai"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.city}
+                  onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                State <span className="text-red-500">*</span>
+                <input
+                  required
+                  autoComplete="address-level1"
+                  placeholder="Maharashtra"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.state}
+                  onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Postal Code <span className="text-red-500">*</span>
+                <input
+                  required
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  placeholder="400001"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.postalCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, postalCode: e.target.value }))}
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Country
+                <input
+                  autoComplete="country-name"
+                  placeholder="India"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  value={form.country}
+                  onChange={(e) => setForm((prev) => ({ ...prev, country: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            {message && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                {message}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition"
+            >
+              Proceed to Payment
+            </button>
+          </form>
+
+          <div className="rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 h-fit glass-card">
+            <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Shipping</span>
+                <span className="font-medium text-gray-900">Calculated at checkout</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-100 pt-3 text-base">
+                <span className="font-semibold">Total</span>
+                <span className="font-semibold">{formatCurrency(subtotal)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <CartDrawer
+        isOpen={showCart}
+        onOpen={() => setShowCart(true)}
+        onClose={() => setShowCart(false)}
+        hideTrigger
+      />
+    </main>
+  );
+}
