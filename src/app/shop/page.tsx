@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency } from "../lib/utils";
@@ -76,7 +76,7 @@ function ProductCard({
   );
 }
 
-export default function ShopPage() {
+function ShopPageContent() {
   const searchParams = useSearchParams();
   const { products, wishlist, cart, addToCart, toggleWishlist } = useCommerceStore();
   const [search, setSearch] = useState("");
@@ -181,5 +181,13 @@ export default function ShopPage() {
         hideTrigger
       />
     </main>
+  );
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense>
+      <ShopPageContent />
+    </Suspense>
   );
 }
