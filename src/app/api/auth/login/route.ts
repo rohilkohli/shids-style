@@ -9,7 +9,7 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
   "";
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const mapUserRow = (row: Record<string, any>): User => ({
   id: row.id,
@@ -27,6 +27,10 @@ export async function POST(request: NextRequest) {
 
   if (!email || !password) {
     return NextResponse.json({ ok: false, error: "Email and password are required." }, { status: 400 });
+  }
+
+  if (!supabase) {
+    return NextResponse.json({ ok: false, error: "Supabase not configured." }, { status: 500 });
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
