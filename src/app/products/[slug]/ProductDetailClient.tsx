@@ -28,6 +28,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     }
   }, [product, addRecentlyViewed]);
 
+  const alsoLike = useMemo(() => {
+    if (!product) return [] as Product[];
+    const sameCategory = products.filter((p: Product) => p.category === product.category && p.id !== product.id);
+    const fallback = products.filter((p: Product) => p.id !== product.id);
+    return (sameCategory.length ? sameCategory : fallback).slice(0, 4);
+  }, [products, product?.id, product?.category]);
+
+  const productImages = useMemo(() => (product?.images ?? []).filter(Boolean), [product?.images]);
+  const activeImage = productImages[selectedImageIndex] ?? productImages[0];
+  const canSelectColor = Boolean(product?.colors?.length);
+  const canSelectSize = Boolean(product?.sizes?.length);
+
   if (!ready) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-rose-50 text-gray-800">
@@ -43,16 +55,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const { sale, compareAt } = getProductPrice(product);
   const wished = wishlist.includes(product.id);
   const lowStock = product.stock > 0 && product.stock <= 5;
-  const alsoLike = useMemo(() => {
-    const sameCategory = products.filter((p: Product) => p.category === product.category && p.id !== product.id);
-    const fallback = products.filter((p: Product) => p.id !== product.id);
-    return (sameCategory.length ? sameCategory : fallback).slice(0, 4);
-  }, [products, product.id, product.category]);
-
-  const productImages = useMemo(() => product.images.filter(Boolean), [product.images]);
-  const activeImage = productImages[selectedImageIndex] ?? productImages[0];
-  const canSelectColor = product.colors.length > 0;
-  const canSelectSize = product.sizes.length > 0;
 
   return (
     <main className="min-h-screen bg-[color:var(--background)] text-gray-800">
