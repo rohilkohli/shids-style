@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
         items.map((item) => {
           const product = productMap.get(item.productId)!;
           const nextStock = product.stock - item.quantity;
-          return supabaseAdmin
+          return supabaseAdmin!
             .from("products")
             .update({ stock: nextStock, updated_at: createdAt })
             .eq("id", item.productId);
