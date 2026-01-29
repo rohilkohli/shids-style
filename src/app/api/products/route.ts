@@ -1,0 +1,130 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { slugify } from "@/app/lib/utils";
+import type { Product } from "@/app/lib/types";
+
+const parseList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.map((item) => String(item)).filter(Boolean)
+    : typeof value === "string"
+      ? value
+          .split(/[,;]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
+const mapProductRow = (row: Record<string, any>): Product => ({
+  id: row.id,
+  slug: row.slug,
+  name: row.name,
+  description: row.description ?? "",
+  category: row.category ?? "",
+  price: Number(row.price ?? 0),
+  originalPrice: row.original_price ?? undefined,
+  discountPercent: row.discount_percent ?? undefined,
+  stock: Number(row.stock ?? 0),
+  rating: row.rating ?? undefined,
+  badge: row.badge ?? undefined,
+  tags: Array.isArray(row.tags) ? row.tags : row.tags ? JSON.parse(row.tags) : [],
+  colors: Array.isArray(row.colors) ? row.colors : row.colors ? JSON.parse(row.colors) : [],
+  sizes: Array.isArray(row.sizes) ? row.sizes : row.sizes ? JSON.parse(row.sizes) : [],
+  highlights: Array.isArray(row.highlights)
+    ? row.highlights
+    : row.highlights
+      ? JSON.parse(row.highlights)
+      : [],
+  images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
+});
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = request.nextUrl;
+  const search = searchParams.get("search")?.trim();
+  const category = searchParams.get("category")?.trim();
+  const limit = Math.min(Number(searchParams.get("limit") ?? 50), 100);
+  const offset = Math.max(Number(searchParams.get("offset") ?? 0), 0);
+
+  let query = supabaseAdmin.from("products").select("*");
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,category.ilike.%${search}%`);
+  }
+  if (category && category !== "all") {
+    query = query.eq("category", category);
+  }
+
+  const { data, error } = await query
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, data: (data ?? []).map(mapProductRow) });
+}
+
+export async function POST(request: NextRequest) {
+  const body = (await request.json()) as Partial<Product> & { slug?: string };
+
+  const name = body.name?.trim();
+  const category = body.category?.trim();
+  const description = body.description?.trim() ?? "";
+  const price = Number(body.price ?? 0);
+  if (!name || !category || price <= 0) {
+    return NextResponse.json({ ok: false, error: "Name, category, and price are required." }, { status: 400 });
+  }
+
+  const id = body.id?.trim() || slugify(name);
+  const slug = body.slug?.trim() || slugify(name);
+  const now = new Date().toISOString();
+
+  const payload: Product = {
+    id,
+    slug,
+    name,
+    description,
+    category,
+    price,
+    originalPrice: body.originalPrice ? Number(body.originalPrice) : undefined,
+    discountPercent: body.discountPercent ? Number(body.discountPercent) : undefined,
+    stock: typeof body.stock === "number" ? body.stock : Number(body.stock ?? 0),
+    badge: body.badge?.trim() || undefined,
+    rating: body.rating ? Number(body.rating) : undefined,
+    tags: parseList(body.tags),
+    colors: parseList(body.colors),
+    sizes: parseList(body.sizes),
+    highlights: parseList(body.highlights),
+    images: parseList(body.images),
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("products")
+    .insert({
+      id: payload.id,
+      slug: payload.slug,
+      name: payload.name,
+      description: payload.description,
+      category: payload.category,
+      price: payload.price,
+      original_price: payload.originalPrice ?? null,
+      discount_percent: payload.discountPercent ?? null,
+      stock: payload.stock ?? 0,
+      rating: payload.rating ?? null,
+      badge: payload.badge ?? null,
+      tags: payload.tags,
+      colors: payload.colors,
+      sizes: payload.sizes,
+      highlights: payload.highlights,
+      images: payload.images,
+      created_at: now,
+      updated_at: now,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    const status = error.code === "23505" ? 409 : 500;
+    return NextResponse.json({ ok: false, error: status === 409 ? "Product already exists." : error.message }, { status });
+  }
+
+  return NextResponse.json({ ok: true, data: mapProductRow(data) }, { status: 201 });
+}

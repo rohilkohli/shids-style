@@ -68,4 +68,5 @@ export type User = {
   email: string;
   name: string;
   phone?: string;
+  role?: "admin" | "customer";
 };

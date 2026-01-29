@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
 import { formatCurrency, formatDate, formatDateTime, slugify } from "@/app/lib/utils";
 import type { OrderStatus, Product, Order, Customer, DiscountCode } from "@/app/lib/types";
 
 const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "fulfilled", "shipped", "cancelled"];
 
-type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts";
+type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "marketing";
 
 type ProductFormState = {
   id?: string;
@@ -27,11 +28,27 @@ type ProductFormState = {
   badge?: string;
 };
 
+type HeroEntry = {
+  id: number;
+  position: number;
+  product_id: string;
+  product: Product;
+};
+
+type NewsletterEntry = {
+  id: number;
+  email: string;
+  created_at: string;
+};
+
 export default function AdminPage() {
+  const router = useRouter();
   const {
     products,
     orders,
     discountCodes,
+    user,
+    ready,
     updateProduct,
     createProduct,
     deleteProduct,
@@ -58,6 +75,11 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [awbNumber, setAwbNumber] = useState("");
+  const [heroItems, setHeroItems] = useState<HeroEntry[]>([]);
+  const [newsletterEmails, setNewsletterEmails] = useState<NewsletterEntry[]>([]);
+  const [heroProductId, setHeroProductId] = useState("");
+  const [heroPosition, setHeroPosition] = useState(0);
+  const [marketingMessage, setMarketingMessage] = useState<string | null>(null);
   const [discountForm, setDiscountForm] = useState({
     code: "",
     description: "",
@@ -87,6 +109,106 @@ export default function AdminPage() {
       setSelectedProduct(products[0]);
     }
   }, [products, selectedProduct]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+    if (user.role !== "admin") {
+      router.replace("/");
+    }
+  }, [ready, user, router]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-gray-600">
+        Loading admin console...
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold text-gray-900">Admin Access Only</h1>
+          <p className="mt-2 text-sm text-gray-600">Please sign in with an admin account.</p>
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <Link href="/login" className="rounded-full bg-black px-5 py-2 text-xs font-semibold text-white">Go to Login</Link>
+            <Link href="/" className="rounded-full border border-gray-300 px-5 py-2 text-xs font-semibold text-gray-700">Back Home</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  useEffect(() => {
+    if (currentView !== "marketing") return;
+    const loadMarketing = async () => {
+      try {
+        const [heroRes, newsletterRes] = await Promise.all([
+          fetch("/api/hero"),
+          fetch("/api/newsletter"),
+        ]);
+        const heroJson = await heroRes.json();
+        const newsletterJson = await newsletterRes.json();
+        if (heroJson?.ok) {
+          setHeroItems(heroJson.data as HeroEntry[]);
+        }
+        if (newsletterJson?.ok) {
+          setNewsletterEmails(newsletterJson.data as NewsletterEntry[]);
+        }
+      } catch (error) {
+        console.warn("Failed to load marketing data", error);
+      }
+    };
+    loadMarketing();
+  }, [currentView]);
+
+  const addHeroProduct = async () => {
+    if (!heroProductId) {
+      setMarketingMessage("Select a product to add.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/hero", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: heroProductId, position: heroPosition }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || "Failed to add hero product.");
+      }
+      setMarketingMessage("Hero product saved.");
+      setHeroProductId("");
+      setHeroPosition(0);
+      const refreshed = await fetch("/api/hero");
+      const refreshedJson = await refreshed.json();
+      if (refreshedJson?.ok) {
+        setHeroItems(refreshedJson.data as HeroEntry[]);
+      }
+    } catch (error) {
+      setMarketingMessage((error as Error).message);
+    }
+    setTimeout(() => setMarketingMessage(null), 1600);
+  };
+
+  const removeHeroProduct = async (id: number) => {
+    try {
+      const response = await fetch(`/api/hero?id=${id}`, { method: "DELETE" });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || "Failed to remove hero product.");
+      }
+      setHeroItems((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      setMarketingMessage((error as Error).message);
+      setTimeout(() => setMarketingMessage(null), 1600);
+    }
+  };
 
   const parseList = (value: string) =>
     value
@@ -134,7 +256,7 @@ export default function AdminPage() {
     });
   };
 
-  const handleCreateOrUpdate = () => {
+  const handleCreateOrUpdate = async () => {
     const name = productForm.name.trim();
     const category = productForm.category.trim();
     const price = Number(productForm.price) || 0;
@@ -180,9 +302,13 @@ export default function AdminPage() {
         badge: productForm.badge?.trim() || undefined,
         rating: 4.5,
       };
-      const created = createProduct(payload);
-      setSelectedProduct(created);
-      setFlash("Product created");
+      try {
+        const created = await createProduct(payload);
+        setSelectedProduct(created ?? null);
+        setFlash("Product created");
+      } catch (error) {
+        setFlash((error as Error).message);
+      }
     } else if (formMode === "edit" && selectedProduct) {
       const updates: Partial<Product> = {
         name,
@@ -199,9 +325,13 @@ export default function AdminPage() {
         images,
         badge: productForm.badge?.trim() || undefined,
       };
-      updateProduct(selectedProduct.id, updates);
-      setSelectedProduct({ ...selectedProduct, ...updates });
-      setFlash("Product updated");
+      try {
+        const updated = await updateProduct(selectedProduct.id, updates);
+        setSelectedProduct(updated ?? selectedProduct);
+        setFlash("Product updated");
+      } catch (error) {
+        setFlash((error as Error).message);
+      }
     }
 
     setShowProductPanel(false);
@@ -210,15 +340,19 @@ export default function AdminPage() {
     setTimeout(() => setFlash(null), 1600);
   };
 
-  const handleDelete = (product: Product) => {
+  const handleDelete = async (product: Product) => {
     const ok = window.confirm(`Delete "${product.name}"? This cannot be undone.`);
     if (!ok) return;
-    deleteProduct(product.id);
-    setFlash("Product deleted");
-    if (selectedProduct?.id === product.id) {
-      setSelectedProduct(null);
+    try {
+      await deleteProduct(product.id);
+      setFlash("Product deleted");
+      if (selectedProduct?.id === product.id) {
+        setSelectedProduct(null);
+      }
+      setTimeout(() => setFlash(null), 1600);
+    } catch (error) {
+      setFlash((error as Error).message);
     }
-    setTimeout(() => setFlash(null), 1600);
   };
 
   const categories = useMemo(() => ["all", ...new Set(products.map((p) => p.category))], [products]);
@@ -268,18 +402,26 @@ export default function AdminPage() {
     return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
   }, [orders]);
 
-  const handleOrderStatusUpdate = (orderId: string, status: OrderStatus, awb?: string) => {
+  const handleOrderStatusUpdate = async (orderId: string, status: OrderStatus, awb?: string) => {
     if (status === "shipped" && !awb?.trim()) {
       alert("AWB Number is required to mark order as shipped");
       return;
     }
-    updateOrderStatus(orderId, status, awb);
-    if (awb) {
-      setFlash(`Order ${orderId} updated to ${status} with AWB: ${awb}`);
-    } else {
-      setFlash(`Order ${orderId} updated to ${status}`);
+    try {
+      const updated = await updateOrderStatus(orderId, status, awb);
+      if (updated && selectedOrder?.id === orderId) {
+        setSelectedOrder(updated);
+        setAwbNumber(updated.awbNumber || "");
+      }
+      if (awb) {
+        setFlash(`Order ${orderId} updated to ${status} with AWB: ${awb}`);
+      } else {
+        setFlash(`Order ${orderId} updated to ${status}`);
+      }
+      setTimeout(() => setFlash(null), 2000);
+    } catch (error) {
+      setFlash((error as Error).message);
     }
-    setTimeout(() => setFlash(null), 2000);
   };
 
   const openOrderDetail = (order: Order) => {
@@ -386,6 +528,20 @@ export default function AdminPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Discount Codes
+          </button>
+
+          <button
+            onClick={() => setCurrentView("marketing")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              currentView === "marketing"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Marketing
           </button>
 
           <Link
@@ -749,7 +905,7 @@ export default function AdminPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
                             value={order.status}
-                            onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                            onChange={(e) => handleOrderStatusUpdate(order.id, e.target.value as OrderStatus)}
                             className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
                           >
                             {statuses.map((status) => (
@@ -759,11 +915,15 @@ export default function AdminPage() {
                             ))}
                           </select>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Delete order ${order.id}? This cannot be undone.`)) {
-                                deleteOrder(order.id);
-                                setFlash(`Order ${order.id} deleted`);
-                                setTimeout(() => setFlash(null), 2000);
+                                try {
+                                  await deleteOrder(order.id);
+                                  setFlash(`Order ${order.id} deleted`);
+                                  setTimeout(() => setFlash(null), 2000);
+                                } catch (error) {
+                                  setFlash((error as Error).message);
+                                }
                               }
                             }}
                             className="ml-2 text-xs text-red-600 hover:text-red-900 font-medium"
@@ -825,11 +985,15 @@ export default function AdminPage() {
                           </button>
                           <button
                             className="text-red-600 hover:text-red-900"
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Delete customer ${customer.email} and all their orders? This cannot be undone.`)) {
-                                deleteCustomer(customer.email);
-                                setFlash(`Customer ${customer.email} deleted`);
-                                setTimeout(() => setFlash(null), 2000);
+                                try {
+                                  await deleteCustomer(customer.email);
+                                  setFlash(`Customer ${customer.email} deleted`);
+                                  setTimeout(() => setFlash(null), 2000);
+                                } catch (error) {
+                                  setFlash((error as Error).message);
+                                }
                               }
                             }}
                           >
@@ -963,7 +1127,13 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
-                            onClick={() => toggleDiscountCodeActive(code.id)}
+                            onClick={async () => {
+                              try {
+                                await toggleDiscountCodeActive(code.id);
+                              } catch (error) {
+                                setFlash((error as Error).message);
+                              }
+                            }}
                             className={`px-2 py-1 text-xs font-medium rounded ${
                               code.isActive
                                 ? "bg-green-100 text-green-800 hover:bg-green-200"
@@ -979,11 +1149,15 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Delete code ${code.code}?`)) {
-                                deleteDiscountCode(code.id);
-                                setFlash(`Code ${code.code} deleted`);
-                                setTimeout(() => setFlash(null), 2000);
+                                try {
+                                  await deleteDiscountCode(code.id);
+                                  setFlash(`Code ${code.code} deleted`);
+                                  setTimeout(() => setFlash(null), 2000);
+                                } catch (error) {
+                                  setFlash((error as Error).message);
+                                }
                               }
                             }}
                             className="text-red-600 hover:text-red-900 font-medium"
@@ -1001,6 +1175,102 @@ export default function AdminPage() {
                   <p className="text-sm text-gray-600">No discount codes yet. Create your first code!</p>
                 </div>
               )}
+            </>
+          )}
+
+          {currentView === "marketing" && (
+            <>
+              <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900">Marketing</h1>
+                <p className="text-sm text-gray-500 mt-1">Manage hero carousel and newsletter signups</p>
+              </div>
+
+              {marketingMessage && (
+                <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+                  {marketingMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-gray-900">Hero Carousel</h2>
+                    <span className="text-xs text-gray-500">{heroItems.length} items</span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <select
+                      className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      value={heroProductId}
+                      onChange={(event) => setHeroProductId(event.target.value)}
+                    >
+                      <option value="">Select a product</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      value={heroPosition}
+                      onChange={(event) => setHeroPosition(Number(event.target.value))}
+                      placeholder="Position"
+                    />
+                    <button
+                      className="sm:col-span-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                      onClick={addHeroProduct}
+                    >
+                      Add / Update Hero
+                    </button>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {heroItems.length === 0 && (
+                      <p className="text-sm text-gray-500">No hero products selected.</p>
+                    )}
+                    {heroItems.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{item.product?.name}</p>
+                          <p className="text-xs text-gray-500">Position {item.position}</p>
+                        </div>
+                        <button
+                          className="text-xs font-semibold text-red-600 hover:text-red-900"
+                          onClick={() => removeHeroProduct(item.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-gray-900">Newsletter Emails</h2>
+                    <span className="text-xs text-gray-500">{newsletterEmails.length} total</span>
+                  </div>
+
+                  <div className="mt-4 max-h-[420px] overflow-y-auto border border-gray-100 rounded-lg">
+                    {newsletterEmails.length === 0 ? (
+                      <p className="p-4 text-sm text-gray-500">No emails collected yet.</p>
+                    ) : (
+                      <ul className="divide-y divide-gray-100 text-sm">
+                        {newsletterEmails.map((entry) => (
+                          <li key={entry.id} className="flex items-center justify-between px-4 py-3">
+                            <div>
+                              <p className="font-medium text-gray-900">{entry.email}</p>
+                              <p className="text-xs text-gray-500">{formatDateTime(entry.created_at)}</p>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -1312,7 +1582,14 @@ export default function AdminPage() {
                         type="button"
                         className="w-full rounded-full bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-900 disabled:opacity-60"
                         disabled={selectedOrder.paymentVerified}
-                        onClick={() => verifyPayment(selectedOrder.id, true)}
+                        onClick={async () => {
+                          try {
+                            const updated = await verifyPayment(selectedOrder.id, true);
+                            setSelectedOrder(updated ?? selectedOrder);
+                          } catch (error) {
+                            setFlash((error as Error).message);
+                          }
+                        }}
                       >
                         {selectedOrder.paymentVerified ? "Payment Verified" : "Verify Payment"}
                       </button>
@@ -1780,7 +2057,7 @@ export default function AdminPage() {
 
               <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200">
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!discountForm.code.trim()) {
                       alert("Please enter a code");
                       return;
@@ -1789,17 +2066,21 @@ export default function AdminPage() {
                       alert("Please enter a valid discount value");
                       return;
                     }
-                    createDiscountCode(
-                      discountForm.code,
-                      discountForm.description,
-                      discountForm.type,
-                      discountForm.value,
-                      discountForm.maxUses,
-                      discountForm.expiryDate || undefined
-                    );
-                    setShowDiscountPanel(false);
-                    setFlash(`Discount code ${discountForm.code} created`);
-                    setTimeout(() => setFlash(null), 2000);
+                    try {
+                      await createDiscountCode(
+                        discountForm.code,
+                        discountForm.description,
+                        discountForm.type,
+                        discountForm.value,
+                        discountForm.maxUses,
+                        discountForm.expiryDate || undefined
+                      );
+                      setShowDiscountPanel(false);
+                      setFlash(`Discount code ${discountForm.code} created`);
+                      setTimeout(() => setFlash(null), 2000);
+                    } catch (error) {
+                      setFlash((error as Error).message);
+                    }
                   }}
                   className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
                 >

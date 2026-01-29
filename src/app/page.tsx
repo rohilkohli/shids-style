@@ -6,6 +6,7 @@ import { getProductPrice, useCommerceStore } from "./lib/store";
 import { classNames, formatCurrency } from "./lib/utils";
 import type { Product } from "./lib/types";
 import CartDrawer from "./components/CartDrawer";
+import HeroCarousel, { HeroItem } from "./components/HeroCarousel";
 
 const categories = ["All", "Oversized Tees", "Summer Dresses", "Cargo & Denims", "Knitwear", "Accessories"];
 
@@ -96,6 +97,7 @@ export default function Home() {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState<string | null>(null);
+  const [heroItems, setHeroItems] = useState<HeroItem[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToSection = (id: string) => {
@@ -123,6 +125,22 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeydown);
   }, []);
 
+  useEffect(() => {
+    const loadHero = async () => {
+      try {
+        const res = await fetch("/api/hero");
+        const json = await res.json();
+        if (json?.ok) {
+          const items = (json.data as HeroItem[]) ?? [];
+          setHeroItems(items.filter((item) => item?.product));
+        }
+      } catch (error) {
+        console.warn("Failed to load hero products", error);
+      }
+    };
+    loadHero();
+  }, []);
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchesSearch = product.name.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -144,6 +162,15 @@ export default function Home() {
     return { subtotal, itemCount: cart.reduce((sum, item) => sum + item.quantity, 0) };
   }, [cart, products]);
 
+  const heroSlides = useMemo<HeroItem[]>(() => {
+    if (heroItems.length) return heroItems;
+    return products.slice(0, 5).map((product, index) => ({
+      id: product.id,
+      position: index,
+      product,
+    }));
+  }, [heroItems, products]);
+
 
   if (!ready) {
     return (
@@ -157,30 +184,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
-      {/* Hero Section */}
-      <section className="relative h-[420px] sm:h-[620px] lg:h-[700px] bg-gray-50 overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1600&h=900&fit=crop"
-          alt="Hero"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-        <div className="relative h-full flex items-end">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16 lg:pb-20">
-            <h2 className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold text-white mb-5 sm:mb-6">
-              Redefine Your Vibe
-            </h2>
-            <div className="flex justify-center">
-              <Link
-                href="/shop"
-                className="rounded-full btn-primary px-6 sm:px-8 py-3.5 sm:py-4 text-base font-medium transition"
-              >
-                Shop Collection
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroCarousel items={heroSlides} />
 
       {/* Featured Collections - 3 Column Grid */}
       <section className="py-10 sm:py-16 section-tint">
@@ -350,21 +354,28 @@ export default function Home() {
             </h2>
             <form
               className="relative max-w-md mx-auto glass-card rounded-full"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault();
                 const normalized = newsletterEmail.trim().toLowerCase();
                 if (!normalized || !normalized.includes("@")) {
                   setNewsletterMessage("Please enter a valid email.");
                   return;
                 }
-                const stored = window.localStorage.getItem("shids-style/newsletter");
-                const next = stored ? (JSON.parse(stored) as string[]) : [];
-                if (!next.includes(normalized)) {
-                  next.unshift(normalized);
-                  window.localStorage.setItem("shids-style/newsletter", JSON.stringify(next.slice(0, 50)));
+                try {
+                  const response = await fetch("/api/newsletter", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: normalized }),
+                  });
+                  const json = await response.json();
+                  if (!response.ok || !json.ok) {
+                    throw new Error(json.error || "Subscription failed.");
+                  }
+                  setNewsletterEmail("");
+                  setNewsletterMessage("Thanks! You are subscribed.");
+                } catch (error) {
+                  setNewsletterMessage((error as Error).message);
                 }
-                setNewsletterEmail("");
-                setNewsletterMessage("Thanks! You are subscribed.");
                 setTimeout(() => setNewsletterMessage(null), 2500);
               }}
             >

@@ -51,14 +51,20 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
   const productImages = useMemo(() => product.images.filter(Boolean), [product.images]);
   const activeImage = productImages[selectedImageIndex] ?? productImages[0];
+  const canSelectColor = product.colors.length > 0;
+  const canSelectSize = product.sizes.length > 0;
 
   return (
     <main className="min-h-screen bg-[color:var(--background)] text-gray-800">
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="text-xs uppercase tracking-[0.2em] text-gray-500 hover:text-black font-semibold transition">
-            ← Back to catalog
-          </Link>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Link href="/" className="hover:text-black font-semibold transition">Home</Link>
+            <span>/</span>
+            <Link href="/shop" className="hover:text-black font-semibold transition">Shop</Link>
+            <span>/</span>
+            <span className="font-semibold text-gray-800">{product.name}</span>
+          </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <span className="rounded-full border border-gray-200 px-3 py-1">Product</span>
             {product.badge && <span className="rounded-full bg-black text-white px-3 py-1">{product.badge}</span>}
@@ -67,13 +73,35 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         <section className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
-            <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg">
-              <img src={activeImage} alt={product.name} className="h-full w-full object-cover" />
+            <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg group">
+              <img src={activeImage} alt={product.name} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
               {product.discountPercent ? (
                 <div className="absolute right-4 top-4 rounded-full bg-black px-3 py-1 text-xs font-semibold text-white shadow">
                   -{product.discountPercent}%
                 </div>
               ) : null}
+              {productImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow"
+                    onClick={() =>
+                      setSelectedImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length)
+                    }
+                    aria-label="Previous image"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow"
+                    onClick={() => setSelectedImageIndex((prev) => (prev + 1) % productImages.length)}
+                    aria-label="Next image"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
             </div>
             <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
               {productImages.map((img, index) => (
@@ -109,7 +137,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 {product.stock > 0 ? `Hurry up! Only ${product.stock} item(s) left` : "Sold out"}
               </p>
 
+              <div className="mt-4 grid grid-cols-3 gap-3 text-xs text-gray-600">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center">Easy Returns</div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center">Cash on Delivery</div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center">Secure Checkout</div>
+              </div>
+
               <div className="mt-5 space-y-4">
+                {canSelectColor && (
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Color</p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -129,7 +164,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     ))}
                   </div>
                 </div>
+                )}
 
+                {canSelectSize && (
                 <div>
                   <div className="flex items-center justify-between">
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Size</p>
@@ -154,6 +191,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     ))}
                   </div>
                 </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center overflow-hidden rounded-full border border-gray-300">
@@ -168,7 +206,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <button
                       type="button"
                       className="h-10 w-10 text-gray-600 hover:bg-gray-100"
-                      onClick={() => setQuantity((prev) => prev + 1)}
+                      onClick={() =>
+                        setQuantity((prev) => (product.stock ? Math.min(product.stock, prev + 1) : prev + 1))
+                      }
                     >
                       +
                     </button>
@@ -176,14 +216,25 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   <button
                     className="flex-1 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={product.stock === 0}
-                    onClick={() =>
+                    onClick={() => {
+                      if (canSelectColor && !selectedColor) {
+                        setActionMessage("Please choose a color.");
+                        return;
+                      }
+                      if (canSelectSize && !selectedSize) {
+                        setActionMessage("Please choose a size.");
+                        return;
+                      }
+                      const nextQty = Math.min(quantity, product.stock || 1);
                       addToCart({
                         productId: product.id,
-                        quantity,
+                        quantity: nextQty,
                         color: selectedColor ?? undefined,
                         size: selectedSize ?? undefined,
-                      })
-                    }
+                      });
+                      setActionMessage("Added to cart.");
+                      setTimeout(() => setActionMessage(null), 2000);
+                    }}
                   >
                     Add to Cart
                   </button>
@@ -262,6 +313,19 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <summary className="cursor-pointer text-sm font-semibold text-gray-900">Description</summary>
                 <p className="mt-2 text-sm text-gray-600 leading-relaxed">{product.description}</p>
               </details>
+              {product.highlights.length > 0 && (
+                <details open className="group">
+                  <summary className="cursor-pointer text-sm font-semibold text-gray-900">Highlights</summary>
+                  <ul className="mt-2 grid gap-2 text-sm text-gray-600">
+                    {product.highlights.map((highlight) => (
+                      <li key={highlight} className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black" />
+                        <span>{highlight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
               <details className="group">
                 <summary className="cursor-pointer text-sm font-semibold text-gray-900">Shipping and Returns</summary>
                 <p className="mt-2 text-sm text-gray-600 leading-relaxed">

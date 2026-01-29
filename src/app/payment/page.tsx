@@ -18,6 +18,7 @@ export default function PaymentPage() {
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [shippingInfo, setShippingInfo] = useState<{
     email: string;
     phone: string;
@@ -67,13 +68,19 @@ export default function PaymentPage() {
     }, 0);
   }, [cart, products]);
 
+  const formattedTimer = useMemo(() => {
+    const minutes = Math.floor(secondsLeft / 60);
+    const seconds = Math.max(0, secondsLeft % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }, [secondsLeft]);
+
   const shippingFee = subtotal > FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
   const totalAmount = subtotal + shippingFee;
   const txnRef = `SHIDS-${Date.now()}`;
   const upiLink = `upi://pay?pa=shids@upi&pn=SHIDS%20STYLE&mc=&tid=${txnRef}&tr=${txnRef}&tn=Payment%20for%20SHIDS%20STYLE&am=${totalAmount.toFixed(2)}&cu=INR`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     setMessage(null);
     if (secondsLeft <= 0) {
       setMessage("Order not placed. Payment window expired.");
@@ -88,20 +95,27 @@ export default function PaymentPage() {
       return;
     }
 
-    const order = createOrder({
-      email: shippingInfo.email,
-      address: shippingInfo.address,
-      notes: `Phone: ${shippingInfo.phone} | Name: ${shippingInfo.name}`,
-      paymentProof: receiptDataUrl,
-      shippingFee,
-    });
+    setSubmitting(true);
+    try {
+      const order = await createOrder({
+        email: shippingInfo.email,
+        address: shippingInfo.address,
+        notes: `Phone: ${shippingInfo.phone} | Name: ${shippingInfo.name}`,
+        paymentProof: receiptDataUrl,
+        shippingFee,
+      });
 
-    if (order) {
-      window.localStorage.setItem("shids-style/last-order", JSON.stringify(order));
-      window.localStorage.removeItem("shids-style/shipping");
-      router.push("/payment-processing");
-    } else {
-      setMessage("Order not placed. Cart is empty.");
+      if (order) {
+        window.localStorage.setItem("shids-style/last-order", JSON.stringify(order));
+        window.localStorage.removeItem("shids-style/shipping");
+        router.push("/payment-processing");
+      } else {
+        setMessage("Order not placed. Cart is empty.");
+      }
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -148,9 +162,7 @@ export default function PaymentPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-500">Time Remaining</p>
-                    <p className="text-base font-semibold text-gray-900">
-                      {Math.max(0, secondsLeft)} seconds
-                    </p>
+                    <p className="text-base font-semibold text-gray-900">{formattedTimer}</p>
                   </div>
                   <div className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600">
                     Upload proof before timer ends
@@ -195,6 +207,18 @@ export default function PaymentPage() {
                   >
                     Open UPI Apps
                   </a>
+                  <button
+                    type="button"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:border-black"
+                    onClick={async () => {
+                      if (!navigator.clipboard) return;
+                      await navigator.clipboard.writeText("shids@upi");
+                      setMessage("UPI ID copied to clipboard.");
+                      setTimeout(() => setMessage(null), 1600);
+                    }}
+                  >
+                    Copy UPI ID
+                  </button>
                 </div>
               </div>
 
@@ -243,6 +267,11 @@ export default function PaymentPage() {
                 <p className="mt-2 text-xs text-gray-500">
                   Ensure the screenshot shows UPI ID, amount, and reference ID.
                 </p>
+                {receiptDataUrl && (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                    <img src={receiptDataUrl} alt="Payment proof" className="h-40 w-full object-cover" />
+                  </div>
+                )}
               </div>
 
               {message && (
@@ -253,15 +282,65 @@ export default function PaymentPage() {
 
               <button
                 onClick={handleConfirm}
-                className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition"
+                className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition disabled:opacity-70"
+                disabled={submitting}
               >
-                Confirm Payment
+                {submitting ? "Confirming..." : "Confirm Payment"}
               </button>
             </div>
 
             <div className="space-y-6">
+              {shippingInfo ? (
+                <div className="rounded-3xl border border-gray-100 p-6 sm:p-7 glass-card">
+                  <h3 className="text-sm font-semibold text-gray-900">Shipping Details</h3>
+                  <div className="mt-3 text-xs text-gray-600 space-y-1">
+                    <p className="font-semibold text-gray-900">{shippingInfo.name}</p>
+                    <p>{shippingInfo.email}</p>
+                    <p>{shippingInfo.phone}</p>
+                    <p>{shippingInfo.address}</p>
+                  </div>
+                  <Link
+                    href="/shipping"
+                    className="mt-4 inline-flex text-xs font-semibold text-gray-700 hover:text-black"
+                  >
+                    Edit shipping details
+                  </Link>
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-xs text-amber-700">
+                  Shipping details missing. Please go back to Shipping.
+                  <Link href="/shipping" className="ml-2 font-semibold underline">
+                    Go now
+                  </Link>
+                </div>
+              )}
+
               <div className="rounded-3xl border border-gray-100 p-6 sm:p-8 glass-card">
                 <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
+                <div className="mt-4 space-y-3">
+                  {cart.map((item) => {
+                    const product = products.find((p) => p.id === item.productId);
+                    if (!product) return null;
+                    const price = getProductPrice(product);
+                    return (
+                      <div key={`${item.productId}-${item.color ?? ""}-${item.size ?? ""}`} className="flex gap-3 text-sm">
+                        <div className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                          <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-gray-900 line-clamp-1">{product.name}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {item.color ? `Color: ${item.color}` : ""} {item.size ? `· Size: ${item.size}` : ""}
+                          </p>
+                          <p className="text-[10px] text-gray-500">Qty {item.quantity}</p>
+                        </div>
+                        <div className="text-xs font-semibold text-gray-900">
+                          {formatCurrency(price.sale * item.quantity)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 <div className="mt-4 space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal</span>

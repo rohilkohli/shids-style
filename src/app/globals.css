@@ -5,14 +5,14 @@
   --foreground: #1a1a1a;
   --muted: #f9f9f9;
   --card: #ffffff;
-  --border: #000000;
+  --border: #2b2b2b;
   --accent: #1a1a1a;
   --accent-2: #4a4a4a;
   --accent-3: #f9f9f9;
   --primary: #121826;
   --primary-2: #3b2f26;
   --primary-soft: #f3ebe4;
-  --primary-border: #000000;
+  --primary-border: #2b2b2b;
   --section: #faf7f4;
 }
 
@@ -47,14 +47,14 @@ a {
 
 .glass {
   background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .glass-card {
   background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.2);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(18px) saturate(140%);
 }

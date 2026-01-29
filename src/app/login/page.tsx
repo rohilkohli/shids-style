@@ -7,7 +7,7 @@ import { useCommerceStore } from "../lib/store";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { ready, user, signIn } = useCommerceStore();
+  const { ready, user, loginUser } = useCommerceStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
 
@@ -48,8 +48,16 @@ export default function LoginPage() {
       window.localStorage.removeItem("shids-style/login-email");
     }
 
-    signIn({ email: normalizedEmail });
-    router.push("/account");
+    try {
+      const nextUser = await loginUser(normalizedEmail, password.trim());
+      if (nextUser?.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/account");
+      }
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
   };
 
   if (!ready) {
@@ -218,7 +226,7 @@ export default function LoginPage() {
             </div>
 
             <p className="mt-6 text-center text-xs text-gray-500">
-              Demo: any email works. Password is stored only on this device.
+              Use your registered email and password.
             </p>
             <div className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-500">
               <span>New here?</span>

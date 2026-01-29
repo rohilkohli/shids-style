@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultOrders, defaultProducts } from "./data";
 import { CartItem, Order, OrderStatus, Product, DiscountCode, User } from "./types";
 import { formatCurrency, slugify } from "./utils";
+import { supabase } from "./supabaseClient";
 
 const STORAGE_KEY = "shids-style/state/v1";
 
@@ -27,6 +28,8 @@ export type CreateOrderPayload = {
   paymentProof?: string;
   shippingFee?: number;
 };
+
+type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
 type PersistedState = {
   products: Product[];
@@ -59,6 +62,21 @@ export function useCommerceStore() {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
+
+  const apiRequest = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    });
+    const data = (await response.json().catch(() => ({ ok: false, error: "Invalid server response." }))) as ApiResponse<T>;
+    if (!response.ok || !data.ok) {
+      throw new Error(data.ok ? "Request failed." : data.error);
+    }
+    return data.data;
+  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -113,6 +131,77 @@ export function useCommerceStore() {
     );
   }, [products, orders, cart, wishlist, discountCodes, user, recentlyViewed, ready]);
 
+  useEffect(() => {
+    if (!ready) return;
+    const productIds = new Set(products.map((product) => product.id));
+    setCart((prev) => prev.filter((item) => productIds.has(item.productId)));
+    setWishlist((prev) => prev.filter((id) => productIds.has(id)));
+  }, [products, ready]);
+
+  const mapSupabaseUser = (sbUser: any): User => ({
+    id: sbUser.id,
+    email: sbUser.email ?? "",
+    name: sbUser.user_metadata?.name || "SHIDS Member",
+    phone: sbUser.user_metadata?.phone || undefined,
+    role: sbUser.app_metadata?.role || undefined,
+  });
+
+  const fetchProfile = useCallback(
+    async (email: string) => {
+      try {
+        return await apiRequest<User>(`/api/users/${encodeURIComponent(email)}`);
+      } catch (error) {
+        return null;
+      }
+    },
+    [apiRequest]
+  );
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    const syncFromApi = async () => {
+      try {
+        const [nextProducts, nextOrders, nextDiscounts] = await Promise.all([
+          apiRequest<Product[]>("/api/products"),
+          apiRequest<Order[]>("/api/orders"),
+          apiRequest<DiscountCode[]>("/api/discounts"),
+        ]);
+        if (cancelled) return;
+        setProducts(nextProducts);
+        setOrders(nextOrders);
+        setDiscountCodes(nextDiscounts);
+      } catch (error) {
+        console.warn("Backend sync failed", error);
+      }
+    };
+    syncFromApi();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiRequest, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session?.user?.email) {
+        const profile = await fetchProfile(data.session.user.email);
+        setUser(profile ?? mapSupabaseUser(data.session.user));
+      }
+    });
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user?.email) {
+        const profile = await fetchProfile(session.user.email);
+        setUser(profile ?? mapSupabaseUser(session.user));
+      } else {
+        setUser(null);
+      }
+    });
+    return () => {
+      subscription?.subscription?.unsubscribe();
+    };
+  }, [ready, fetchProfile]);
+
   const addRecentlyViewed = useCallback((productId: string) => {
     setRecentlyViewed((prev: string[]) => {
       const next = [productId, ...prev.filter((id) => id !== productId)];
@@ -122,28 +211,44 @@ export function useCommerceStore() {
 
   const clearRecentlyViewed = useCallback(() => setRecentlyViewed([]), []);
 
-  const signIn = (payload: { email: string; name?: string; phone?: string }) => {
-    const nextUser: User = {
-      id: user?.id ?? `USER-${Date.now()}`,
-      email: payload.email.trim().toLowerCase(),
-      name: payload.name?.trim() || "SHIDS Member",
-      phone: payload.phone?.trim() || undefined,
-    };
+  const loginUser = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) {
+      throw new Error(error?.message || "Invalid credentials.");
+    }
+
+    const profile = await fetchProfile(email);
+    const nextUser = profile ?? mapSupabaseUser(data.user);
     setUser(nextUser);
     return nextUser;
   };
 
-  const signOut = () => setUser(null);
+  const registerUser = async (name: string, email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    });
+    if (error || !data.user) {
+      throw new Error(error?.message || "Unable to register.");
+    }
+    const profile = await fetchProfile(email);
+    const nextUser = profile ?? mapSupabaseUser(data.user);
+    setUser(nextUser);
+    return nextUser;
+  };
 
-  const updateUser = (updates: Partial<Omit<User, "id">>) => {
+  const signOut = () => {
+    supabase.auth.signOut().catch(() => undefined);
+    setUser(null);
+  };
+
+  const updateUser = async (updates: Partial<Omit<User, "id">>) => {
     if (!user) return null;
-    const nextUser: User = {
-      ...user,
-      ...updates,
-      email: updates.email ? updates.email.trim().toLowerCase() : user.email,
-      name: updates.name?.trim() || user.name,
-      phone: updates.phone?.trim() || user.phone,
-    };
+    const nextUser = await apiRequest<User>(`/api/users/${encodeURIComponent(user.email)}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
     setUser(nextUser);
     return nextUser;
   };
@@ -164,12 +269,15 @@ export function useCommerceStore() {
     );
   };
 
-  const updateProduct = (productId: string, updates: Partial<Product>) => {
+  const updateProduct = async (productId: string, updates: Partial<Product>) => {
+    const updated = await apiRequest<Product>(`/api/products/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
     setProducts((prev: Product[]) =>
-      prev.map((product: Product) =>
-        product.id === productId ? { ...product, ...updates, id: product.id, slug: product.slug } : product
-      )
+      prev.map((product: Product) => (product.id === updated.id ? updated : product))
     );
+    return updated;
   };
 
   const updateProductDiscount = (productId: string, discountPercent: number) => {
@@ -182,26 +290,21 @@ export function useCommerceStore() {
     );
   };
 
-  const createProduct = (payload: Omit<Product, "id" | "slug"> & { id?: string; slug?: string }) => {
-    const baseId = payload.id ?? slugify(payload.name);
-    const id = products.find((p) => p.id === baseId) ? `${baseId}-${Date.now()}` : baseId;
-    const slug = payload.slug ?? slugify(payload.name);
-    const product: Product = {
-      ...payload,
-      id,
-      slug,
-      tags: payload.tags ?? [],
-      colors: payload.colors ?? [],
-      sizes: payload.sizes ?? [],
-      images: payload.images ?? [],
-      highlights: payload.highlights ?? [],
-      discountPercent: payload.discountPercent ?? 0,
-    };
+  const createProduct = async (payload: Omit<Product, "id" | "slug"> & { id?: string; slug?: string }) => {
+    const product = await apiRequest<Product>("/api/products", {
+      method: "POST",
+      body: JSON.stringify({
+        ...payload,
+        id: payload.id ?? slugify(payload.name),
+        slug: payload.slug ?? slugify(payload.name),
+      }),
+    });
     setProducts((prev: Product[]) => [product, ...prev]);
     return product;
   };
 
-  const deleteProduct = (productId: string) => {
+  const deleteProduct = async (productId: string) => {
+    await apiRequest<{ ok: true }>(`/api/products/${productId}`, { method: "DELETE" });
     setProducts((prev: Product[]) => prev.filter((product: Product) => product.id !== productId));
   };
 
@@ -246,14 +349,13 @@ export function useCommerceStore() {
 
   const clearCart = () => setCart([]);
 
-  const updateOrderStatus = (orderId: string, status: OrderStatus, awbNumber?: string) => {
-    setOrders((prev: Order[]) =>
-      prev.map((order: Order) =>
-        order.id === orderId
-          ? { ...order, status, ...(awbNumber ? { awbNumber } : {}) }
-          : order
-      )
-    );
+  const updateOrderStatus = async (orderId: string, status: OrderStatus, awbNumber?: string) => {
+    const updated = await apiRequest<Order>(`/api/orders/${orderId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, awbNumber: awbNumber ?? null }),
+    });
+    setOrders((prev: Order[]) => prev.map((order: Order) => (order.id === orderId ? updated : order)));
+    return updated;
   };
 
   const cartSummary = useMemo(() => {
@@ -266,7 +368,7 @@ export function useCommerceStore() {
     return { subtotal, formatted: formatCurrency(subtotal) };
   }, [cart, products]);
 
-  const createOrder = (payload: CreateOrderPayload) => {
+  const createOrder = async (payload: CreateOrderPayload) => {
     if (!cart.length) return null;
 
     const normalizedCart = cart.map((item: CartItem) => {
@@ -275,49 +377,27 @@ export function useCommerceStore() {
       return { ...item, quantity: clamp(item.quantity, 1, product.stock) };
     });
 
-    const subtotal = normalizedCart.reduce((sum: number, item: CartItem) => {
-      const product = products.find((p: Product) => p.id === item.productId);
-      if (!product) return sum;
-      const { sale } = getProductPrice(product);
-      return sum + sale * item.quantity;
-    }, 0);
-    const shippingFee = payload.shippingFee ?? 0;
-    const orderTotal = subtotal + shippingFee;
+    const created = await apiRequest<Order>("/api/orders", {
+      method: "POST",
+      body: JSON.stringify({
+        email: payload.email,
+        address: payload.address,
+        notes: payload.notes,
+        paymentProof: payload.paymentProof,
+        shippingFee: payload.shippingFee,
+        items: normalizedCart,
+      }),
+    });
 
-    // Generate order ID in format: SHIDS-DDMMordernumber
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const orderNumber = orders.length + 1;
-    const orderId = `SHIDS-${day}${month}${String(orderNumber).padStart(5, "0")}`;
-
-    const newOrder: Order = {
-      id: orderId,
-      items: normalizedCart,
-      subtotal: Number(subtotal.toFixed(2)),
-      shippingFee: Number(shippingFee.toFixed(2)),
-      total: Number(orderTotal.toFixed(2)),
-      email: payload.email,
-      address: payload.address,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-      notes: payload.notes,
-      paymentProof: payload.paymentProof,
-      paymentVerified: false,
-    };
-
-    setOrders((prev: Order[]) => [...prev, newOrder]);
-    setProducts((prev: Product[]) =>
-      prev.map((product: Product) => {
-        const orderedQty = normalizedCart
-          .filter((item: CartItem) => item.productId === product.id)
-          .reduce((sum: number, item: CartItem) => sum + item.quantity, 0);
-        if (!orderedQty) return product;
-        return { ...product, stock: Math.max(0, product.stock - orderedQty) };
-      })
-    );
+    setOrders((prev: Order[]) => [...prev, created]);
     setCart([]);
-    return newOrder;
+    try {
+      const refreshed = await apiRequest<Product[]>("/api/products");
+      setProducts(refreshed);
+    } catch (error) {
+      console.warn("Failed to refresh products after order", error);
+    }
+    return created;
   };
 
   const getProductBySlug = (slug: string) => products.find((product: Product) => product.slug === slug);
@@ -327,59 +407,68 @@ export function useCommerceStore() {
     [products, wishlist]
   );
 
-  const deleteOrder = (orderId: string) => {
+  const deleteOrder = async (orderId: string) => {
+    await apiRequest<{ ok: true }>(`/api/orders/${orderId}`, { method: "DELETE" });
     setOrders((prev: Order[]) => prev.filter((order: Order) => order.id !== orderId));
   };
 
-  const verifyPayment = (orderId: string, verified = true) => {
-    setOrders((prev: Order[]) =>
-      prev.map((order: Order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              paymentVerified: verified,
-              status: verified ? "paid" : order.status,
-            }
-          : order
-      )
-    );
+  const verifyPayment = async (orderId: string, verified = true) => {
+    const updated = await apiRequest<Order>(`/api/orders/${orderId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ paymentVerified: verified }),
+    });
+    setOrders((prev: Order[]) => prev.map((order: Order) => (order.id === orderId ? updated : order)));
+    return updated;
   };
 
-  const deleteCustomer = (email: string) => {
-    setOrders((prev: Order[]) => prev.filter((order: Order) => order.email !== email));
+  const deleteCustomer = async (email: string) => {
+    const toDelete = orders.filter((order: Order) => order.email === email);
+    await Promise.all(toDelete.map((order) => deleteOrder(order.id)));
   };
 
-  const createDiscountCode = (code: string, description: string, type: "percentage" | "fixed", value: number, maxUses?: number, expiryDate?: string) => {
-    const newCode: DiscountCode = {
-      id: `CODE-${Date.now()}`,
-      code: code.toUpperCase(),
-      description,
-      type,
-      value,
-      maxUses,
-      usedCount: 0,
-      expiryDate,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    };
-    setDiscountCodes((prev: DiscountCode[]) => [newCode, ...prev]);
-    return newCode;
+  const createDiscountCode = async (
+    code: string,
+    description: string,
+    type: "percentage" | "fixed",
+    value: number,
+    maxUses?: number,
+    expiryDate?: string
+  ) => {
+    const created = await apiRequest<DiscountCode>("/api/discounts", {
+      method: "POST",
+      body: JSON.stringify({
+        code,
+        description,
+        type,
+        value,
+        maxUses,
+        expiryDate,
+      }),
+    });
+    setDiscountCodes((prev: DiscountCode[]) => [created, ...prev]);
+    return created;
   };
 
-  const updateDiscountCode = (codeId: string, updates: Partial<DiscountCode>) => {
+  const updateDiscountCode = async (codeId: string, updates: Partial<DiscountCode>) => {
+    const updated = await apiRequest<DiscountCode>(`/api/discounts/${codeId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
     setDiscountCodes((prev: DiscountCode[]) =>
-      prev.map((code: DiscountCode) => (code.id === codeId ? { ...code, ...updates } : code))
+      prev.map((code: DiscountCode) => (code.id === codeId ? updated : code))
     );
+    return updated;
   };
 
-  const deleteDiscountCode = (codeId: string) => {
+  const deleteDiscountCode = async (codeId: string) => {
+    await apiRequest<{ ok: true }>(`/api/discounts/${codeId}`, { method: "DELETE" });
     setDiscountCodes((prev: DiscountCode[]) => prev.filter((code: DiscountCode) => code.id !== codeId));
   };
 
-  const toggleDiscountCodeActive = (codeId: string) => {
-    setDiscountCodes((prev: DiscountCode[]) =>
-      prev.map((code: DiscountCode) => (code.id === codeId ? { ...code, isActive: !code.isActive } : code))
-    );
+  const toggleDiscountCodeActive = async (codeId: string) => {
+    const current = discountCodes.find((code) => code.id === codeId);
+    if (!current) return null;
+    return updateDiscountCode(codeId, { isActive: !current.isActive });
   };
 
   return {
@@ -393,7 +482,8 @@ export function useCommerceStore() {
     recentlyViewed,
     wishlistItems,
     cartSummary,
-    signIn,
+    loginUser,
+    registerUser,
     signOut,
     updateUser,
     addRecentlyViewed,

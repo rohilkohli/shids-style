@@ -58,6 +58,9 @@ export default function ShippingPage() {
     }, 0);
   }, [cart, products]);
 
+  const shippingEstimate = subtotal >= 999 ? 0 : 99;
+  const estimatedTotal = subtotal + shippingEstimate;
+
   const handleSubmit = () => {
     setMessage(null);
     if (!form.email.trim() || !form.phone.trim()) {
@@ -111,11 +114,14 @@ export default function ShippingPage() {
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Shipping Details</h1>
             <p className="text-xs sm:text-sm text-gray-500">Step 1 of 2</p>
+          </div>
+          <div className="text-xs text-gray-500">
+            Free shipping over {formatCurrency(999)}
           </div>
         </div>
 
@@ -265,20 +271,51 @@ export default function ShippingPage() {
             </button>
           </form>
 
-          <div className="rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 h-fit glass-card">
-            <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
-            <div className="mt-4 space-y-3 text-sm">
+          <div className="rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 h-fit glass-card space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
+              <p className="text-xs text-gray-500">Review items before payment.</p>
+            </div>
+
+            <div className="space-y-3">
+              {cart.map((item) => {
+                const product = products.find((p) => p.id === item.productId);
+                if (!product) return null;
+                const price = getProductPrice(product);
+                return (
+                  <div key={`${item.productId}-${item.color ?? ""}-${item.size ?? ""}`} className="flex gap-3">
+                    <div className="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.color ? `Color: ${item.color}` : ""} {item.size ? `· Size: ${item.size}` : ""}
+                      </p>
+                      <p className="text-xs text-gray-600">Qty {item.quantity}</p>
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(price.sale * item.quantity)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal</span>
                 <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
-                <span className="font-medium text-gray-900">Calculated at checkout</span>
+                <span className="font-medium text-gray-900">
+                  {shippingEstimate === 0 ? "Free" : formatCurrency(shippingEstimate)}
+                </span>
               </div>
               <div className="flex justify-between border-t border-gray-100 pt-3 text-base">
                 <span className="font-semibold">Total</span>
-                <span className="font-semibold">{formatCurrency(subtotal)}</span>
+                <span className="font-semibold">{formatCurrency(estimatedTotal)}</span>
               </div>
             </div>
           </div>

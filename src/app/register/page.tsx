@@ -7,13 +7,13 @@ import { useCommerceStore } from "../lib/store";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signIn } = useCommerceStore();
+  const { registerUser } = useCommerceStore();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
 
@@ -31,8 +31,12 @@ export default function RegisterPage() {
       return;
     }
 
-    signIn({ email: normalizedEmail, name: name.trim() });
-    router.push("/account");
+    try {
+      await registerUser(name.trim(), normalizedEmail, password.trim());
+      router.push("/account");
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
   };
 
   return (

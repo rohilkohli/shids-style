@@ -52,10 +52,10 @@ export default function AccountPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Sign in to view your account</h1>
           <p className="mt-2 text-sm text-gray-600">Log in to track orders and manage your profile.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link href="/login" className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800">
+            <Link href="/login" className="rounded-full bg-black px-6 py-3 text-sm font-medium !text-white hover:bg-gray-800">
               Go to Login
             </Link>
-            <Link href="/shop" className="rounded-full border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-white">
+            <Link href="/shop" className="rounded-full border border-gray-900 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-white">
               Continue Shopping
             </Link>
           </div>
@@ -137,27 +137,24 @@ export default function AccountPage() {
 
         {showMenu && (
           <div className="fixed inset-0 z-40 sm:hidden">
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowMenu(false)} />
-            <aside className="absolute left-0 top-0 h-full w-[min(85vw,320px)] bg-white shadow-2xl border-r border-gray-100">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <p className="text-xs uppercase tracking-[0.25em] text-gray-500 font-semibold">Menu</p>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowMenu(false)} />
+            <aside className="absolute left-0 top-0 h-full w-[min(88vw,340px)] bg-white shadow-2xl border-r border-gray-200">
+              <div className="flex items-center justify-between px-5 py-4 bg-[#0f2a23] text-white">
+                <p className="text-base font-semibold">Menu</p>
                 <button
-                  className="h-9 w-9 flex items-center justify-center rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50"
+                  className="h-9 w-9 flex items-center justify-center rounded-full border border-white/30 text-white/90 hover:bg-white/10"
                   onClick={() => setShowMenu(false)}
                   aria-label="Close menu"
                 >
                   <span className="relative w-4 h-4">
-                    <span className="absolute left-0 top-1/2 h-0.5 w-4 -translate-y-1/2 rotate-45 bg-gray-800 rounded" />
-                    <span className="absolute left-0 top-1/2 h-0.5 w-4 -translate-y-1/2 -rotate-45 bg-gray-800 rounded" />
+                    <span className="absolute left-0 top-1/2 h-0.5 w-4 -translate-y-1/2 rotate-45 bg-white rounded" />
+                    <span className="absolute left-0 top-1/2 h-0.5 w-4 -translate-y-1/2 -rotate-45 bg-white rounded" />
                   </span>
                 </button>
               </div>
-              <div className="px-5 py-4 space-y-2 text-sm">
+              <div className="px-5 py-4 text-sm">
                 <button
-                  className={classNames(
-                    "w-full text-left rounded-lg px-3 py-2 font-medium transition",
-                    section === "overview" ? "bg-black text-white" : "hover:bg-gray-50"
-                  )}
+                  className="w-full text-left py-3 font-semibold text-gray-900 border-b border-gray-200"
                   onClick={() => {
                     setSection("overview");
                     setShowMenu(false);
@@ -166,10 +163,7 @@ export default function AccountPage() {
                   Overview
                 </button>
                 <button
-                  className={classNames(
-                    "w-full text-left rounded-lg px-3 py-2 font-medium transition",
-                    section === "orders" ? "bg-black text-white" : "hover:bg-gray-50"
-                  )}
+                  className="w-full text-left py-3 font-semibold text-gray-900 border-b border-gray-200"
                   onClick={() => {
                     setSection("orders");
                     setShowMenu(false);
@@ -178,10 +172,7 @@ export default function AccountPage() {
                   Orders
                 </button>
                 <button
-                  className={classNames(
-                    "w-full text-left rounded-lg px-3 py-2 font-medium transition",
-                    section === "profile" ? "bg-black text-white" : "hover:bg-gray-50"
-                  )}
+                  className="w-full text-left py-3 font-semibold text-gray-900 border-b border-gray-200"
                   onClick={() => {
                     setSection("profile");
                     setShowMenu(false);
@@ -190,11 +181,11 @@ export default function AccountPage() {
                   Manage Profile
                 </button>
                 <button
-                  className="w-full text-left rounded-lg px-3 py-2 font-medium transition hover:bg-gray-50 text-gray-700 inline-flex items-center gap-2"
+                  className="w-full text-left py-3 font-semibold text-gray-900 border-b border-gray-200 inline-flex items-center gap-2"
                   onClick={() => signOut()}
                 >
                   <svg
-                    className="h-3.5 w-3.5"
+                    className="h-4 w-4"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -269,12 +260,12 @@ export default function AccountPage() {
                         </div>
                         <div className="mt-3 text-sm text-gray-600">Total: {formatCurrency(order.total)}</div>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <button
+                          <Link
+                            href={`/track?orderId=${encodeURIComponent(order.id)}&email=${encodeURIComponent(email)}`}
                             className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50"
-                            onClick={() => alert(`Tracking for order ${order.id} is in progress.`)}
                           >
                             Track Order
-                          </button>
+                          </Link>
                           <button
                             className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50"
                             onClick={() => {
@@ -393,10 +384,14 @@ export default function AccountPage() {
 
                 <button
                   className="rounded-full btn-primary px-6 py-3 text-sm font-medium transition"
-                  onClick={() => {
-                    updateUser({ name, email, phone });
-                    setMessage("Profile updated successfully.");
-                    setTimeout(() => setMessage(null), 2000);
+                  onClick={async () => {
+                    try {
+                      await updateUser({ name, email, phone });
+                      setMessage("Profile updated successfully.");
+                      setTimeout(() => setMessage(null), 2000);
+                    } catch (error) {
+                      setMessage((error as Error).message);
+                    }
                   }}
                 >
                   Save Changes
