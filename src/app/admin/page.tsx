@@ -1669,36 +1669,21 @@ export default function AdminPage() {
                       {selectedOrder.status}
                     </span>
                   </p>
-                          <tr key={order.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">#{order.id}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {formatDate(order.createdAt)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs font-medium rounded ${
-                                order.status === "shipped" || order.status === "fulfilled"
-                                  ? "bg-green-100 text-green-800"
-                                  : order.status === "paid" || order.status === "processing" || order.status === "packed"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-amber-100 text-amber-800"
-                              }`}>
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{order.items.length}</td>
-                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                              {formatCurrency(order.total)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                className="text-indigo-600 hover:text-indigo-900 text-sm"
-                                onClick={() => openOrderDetail(order)}
-                              >
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                      {selectedOrder.items.map((item, idx) => {
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Variants</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {selectedOrder.items.map((item, idx) => {
                         const product = products.find((p) => p.id === item.productId);
                         const price = product ? getProductPrice(product).sale : 0;
                         return (
@@ -1715,7 +1700,7 @@ export default function AdminPage() {
                           </tr>
                         );
                       })}
-                    </tbody>
+                  </tbody>
                     <tfoot className="bg-slate-50">
                       <tr>
                         <td colSpan={3} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">Total:</td>
