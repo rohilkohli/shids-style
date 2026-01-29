@@ -32,6 +32,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Order ID and email are required." }, { status: 400 });
   }
 
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("orders")
     .select("*, order_items(*)")
