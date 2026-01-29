@@ -34,11 +34,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid credentials." }, { status: 401 });
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("*")
-    .ilike("email", email)
-    .maybeSingle();
+  const { data: profile } = supabaseAdmin
+    ? await supabaseAdmin.from("profiles").select("*").ilike("email", email).maybeSingle()
+    : { data: null };
 
   if (profile) {
     return NextResponse.json({ ok: true, data: mapUserRow(profile) });
