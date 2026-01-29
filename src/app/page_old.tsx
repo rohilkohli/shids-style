@@ -128,7 +128,7 @@ export default function Home() {
     if (order) {
       setCheckoutForm({ email: "", address: "" });
       setCoupon("");
-      setOrderMessage(`Order ${order.id} placed. We will update status soon.`);
+      setOrderMessage(`Order placed. We will update status soon.`);
     } else {
       setOrderMessage("Add items to cart before checkout.");
     }
