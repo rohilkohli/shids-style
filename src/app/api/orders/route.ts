@@ -157,16 +157,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: itemsError.message }, { status: 500 });
   }
 
-  const updateResults = await Promise.all(
-    items.map((item) => {
-      const product = productMap.get(item.productId)!;
-      const nextStock = product.stock - item.quantity;
-      return supabaseAdmin
-        .from("products")
-        .update({ stock: nextStock, updated_at: createdAt })
-        .eq("id", item.productId);
-    })
-  );
+  const updateResults = supabaseAdmin
+    ? await Promise.all(
+        items.map((item) => {
+          const product = productMap.get(item.productId)!;
+          const nextStock = product.stock - item.quantity;
+          return supabaseAdmin
+            .from("products")
+            .update({ stock: nextStock, updated_at: createdAt })
+            .eq("id", item.productId);
+        })
+      )
+    : [];
 
   const failedUpdate = updateResults.find((result) => result.error);
   if (failedUpdate?.error) {
