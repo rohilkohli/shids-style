@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 export async function GET() {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("newsletter_emails")
     .select("id, email, created_at")
@@ -17,6 +21,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as { email?: string };
   const email = body.email?.trim().toLowerCase();
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   if (!email || !email.includes("@")) {
     return NextResponse.json({ ok: false, error: "Please enter a valid email." }, { status: 400 });
