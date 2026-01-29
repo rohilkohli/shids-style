@@ -121,29 +121,6 @@ export default function AdminPage() {
     }
   }, [ready, user, router]);
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-gray-600">
-        Loading admin console...
-      </div>
-    );
-  }
-
-  if (!user || user.role !== "admin") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold text-gray-900">Admin Access Only</h1>
-          <p className="mt-2 text-sm text-gray-600">Please sign in with an admin account.</p>
-          <div className="mt-5 flex items-center justify-center gap-3">
-            <Link href="/login" className="rounded-full bg-black px-5 py-2 text-xs font-semibold text-white">Go to Login</Link>
-            <Link href="/" className="rounded-full border border-gray-300 px-5 py-2 text-xs font-semibold text-gray-700">Back Home</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
     if (currentView !== "marketing") return;
     const loadMarketing = async () => {
@@ -166,6 +143,76 @@ export default function AdminPage() {
     };
     loadMarketing();
   }, [currentView]);
+
+  const categories = useMemo(() => ["all", ...new Set(products.map((p) => p.category))], [products]);
+
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    return products.filter((product) => {
+      const matchesTerm = term
+        ? product.name.toLowerCase().includes(term) || product.category.toLowerCase().includes(term)
+        : true;
+      const matchesCategory = categoryFilter === "all" ? true : product.category === categoryFilter;
+      return matchesTerm && matchesCategory;
+    });
+  }, [products, searchTerm, categoryFilter]);
+
+  // Calculate stats
+  const totalRevenue = useMemo(() => {
+    return orders.reduce((sum, order) => sum + order.total, 0);
+  }, [orders]);
+
+  const totalOrders = orders.length;
+  const totalCustomers = useMemo(() => {
+    const emails = new Set(orders.map((o) => o.email));
+    return emails.size;
+  }, [orders]);
+
+  const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= 5), [products]);
+
+  const customers = useMemo((): Customer[] => {
+    const customerMap = new Map<string, Customer>();
+    orders.forEach((order) => {
+      const existing = customerMap.get(order.email);
+      if (existing) {
+        existing.totalOrders += 1;
+        existing.totalSpent += order.total;
+        existing.orders.push(order);
+      } else {
+        customerMap.set(order.email, {
+          email: order.email,
+          name: order.email.split("@")[0],
+          totalOrders: 1,
+          totalSpent: order.total,
+          orders: [order],
+        });
+      }
+    });
+    return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
+  }, [orders]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-gray-600">
+        Loading admin console...
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold text-gray-900">Admin Access Only</h1>
+          <p className="mt-2 text-sm text-gray-600">Please sign in with an admin account.</p>
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <Link href="/login" className="rounded-full bg-black px-5 py-2 text-xs font-semibold text-white">Go to Login</Link>
+            <Link href="/" className="rounded-full border border-gray-300 px-5 py-2 text-xs font-semibold text-gray-700">Back Home</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const addHeroProduct = async () => {
     if (!heroProductId) {
@@ -355,52 +402,6 @@ export default function AdminPage() {
     }
   };
 
-  const categories = useMemo(() => ["all", ...new Set(products.map((p) => p.category))], [products]);
-
-  const filteredProducts = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
-    return products.filter((product) => {
-      const matchesTerm = term
-        ? product.name.toLowerCase().includes(term) || product.category.toLowerCase().includes(term)
-        : true;
-      const matchesCategory = categoryFilter === "all" ? true : product.category === categoryFilter;
-      return matchesTerm && matchesCategory;
-    });
-  }, [products, searchTerm, categoryFilter]);
-
-  // Calculate stats
-  const totalRevenue = useMemo(() => {
-    return orders.reduce((sum, order) => sum + order.total, 0);
-  }, [orders]);
-
-  const totalOrders = orders.length;
-  const totalCustomers = useMemo(() => {
-    const emails = new Set(orders.map((o) => o.email));
-    return emails.size;
-  }, [orders]);
-
-  const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= 5), [products]);
-
-  const customers = useMemo((): Customer[] => {
-    const customerMap = new Map<string, Customer>();
-    orders.forEach((order) => {
-      const existing = customerMap.get(order.email);
-      if (existing) {
-        existing.totalOrders += 1;
-        existing.totalSpent += order.total;
-        existing.orders.push(order);
-      } else {
-        customerMap.set(order.email, {
-          email: order.email,
-          name: order.email.split("@")[0],
-          totalOrders: 1,
-          totalSpent: order.total,
-          orders: [order],
-        });
-      }
-    });
-    return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [orders]);
 
   const handleOrderStatusUpdate = async (orderId: string, status: OrderStatus, awb?: string) => {
     if (status === "shipped" && !awb?.trim()) {
