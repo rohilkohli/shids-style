@@ -117,9 +117,9 @@ export default function Home() {
   const discountAmount = cartSummary.subtotal * couponRate;
   const total = cartSummary.subtotal - discountAmount;
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     setOrderMessage(null);
-    const order = createOrder({
+    const order = await createOrder({
       email: checkoutForm.email || "guest@shids.style",
       address: checkoutForm.address || "Digital checkout",
       notes: couponRate ? `Coupon ${coupon.trim().toUpperCase()}` : undefined,
