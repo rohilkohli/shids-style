@@ -24,6 +24,10 @@ const mapOrderRow = (row: Record<string, any>): Order => ({
 });
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { id } = await params;
   const rawId = id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
@@ -41,10 +45,11 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   return NextResponse.json({ ok: true, data: mapOrderRow(row) });
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { id } = await params;
   const rawId = id ?? "";
   const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
@@ -89,6 +94,10 @@ export async function PATCH(
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { id } = await params;
   const rawId = id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";

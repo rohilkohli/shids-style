@@ -23,11 +23,11 @@ export async function PATCH(
   const rawId = id ?? "";
   const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
-  let { data: row } = await supabaseAdmin
-    .from("discount_codes")
-    .select("*")
-    .or(`id.eq.${lookup},code.eq.${lookup}`)
-    .maybeSingle();
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
+  let { data: row } = await supabaseAdmin.from("discount_codes").select("*").or(`id.eq.${lookup},code.eq.${lookup}`).maybeSingle();
 
   if (!row) {
     const { data: fallback } = await supabaseAdmin
@@ -76,6 +76,10 @@ export async function PATCH(
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { id } = await params;
   const rawId = id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
