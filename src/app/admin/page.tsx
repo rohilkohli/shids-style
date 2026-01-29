@@ -47,6 +47,7 @@ type ProfileSummary = {
   name?: string | null;
   phone?: string | null;
   role?: "admin" | "customer" | null;
+  createdAt?: string | null;
 };
 
 export default function AdminPage() {
@@ -57,6 +58,7 @@ export default function AdminPage() {
     discountCodes,
     user,
     ready,
+    signOut,
     updateProduct,
     createProduct,
     deleteProduct,
@@ -86,6 +88,7 @@ export default function AdminPage() {
   const [heroItems, setHeroItems] = useState<HeroEntry[]>([]);
   const [newsletterEmails, setNewsletterEmails] = useState<NewsletterEntry[]>([]);
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [heroProductId, setHeroProductId] = useState("");
   const [heroPosition, setHeroPosition] = useState(0);
   const [marketingMessage, setMarketingMessage] = useState<string | null>(null);
@@ -191,12 +194,20 @@ export default function AdminPage() {
 
   const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= 5), [products]);
 
+  const adminEmails = useMemo(() => {
+    return new Set(
+      profiles
+        .filter((profile) => profile.role === "admin")
+        .map((profile) => profile.email.toLowerCase())
+    );
+  }, [profiles]);
+
   const customers = useMemo((): Customer[] => {
     const customerMap = new Map<string, Customer>();
 
     profiles.forEach((profile) => {
       const email = profile.email?.toLowerCase();
-      if (!email) return;
+      if (!email || profile.role === "admin") return;
       if (!customerMap.has(email)) {
         customerMap.set(email, {
           email,
@@ -210,6 +221,7 @@ export default function AdminPage() {
 
     orders.forEach((order) => {
       const email = order.email.toLowerCase();
+      if (adminEmails.has(email)) return;
       const existing = customerMap.get(email);
       if (existing) {
         existing.totalOrders += 1;
@@ -227,9 +239,48 @@ export default function AdminPage() {
     });
 
     return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [orders, profiles]);
+  }, [orders, profiles, adminEmails]);
 
   const totalCustomers = customers.length;
+
+  const toMonthKey = (value: string) => {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${date.getMonth()}`;
+  };
+
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthKey = `${lastMonth.getFullYear()}-${lastMonth.getMonth()}`;
+
+  const currentMonthOrders = orders.filter((order) => toMonthKey(order.createdAt) === currentMonthKey);
+  const lastMonthOrders = orders.filter((order) => toMonthKey(order.createdAt) === lastMonthKey);
+  const currentMonthRevenue = currentMonthOrders.reduce((sum, order) => sum + order.total, 0);
+  const lastMonthRevenue = lastMonthOrders.reduce((sum, order) => sum + order.total, 0);
+  const currentMonthOrderCount = currentMonthOrders.length;
+  const lastMonthOrderCount = lastMonthOrders.length;
+
+  const currentMonthCustomers = profiles.filter(
+    (profile) => profile.role !== "admin" && profile.createdAt && toMonthKey(profile.createdAt) === currentMonthKey
+  ).length;
+  const lastMonthCustomers = profiles.filter(
+    (profile) => profile.role !== "admin" && profile.createdAt && toMonthKey(profile.createdAt) === lastMonthKey
+  ).length;
+
+  const percentChange = (current: number, previous: number) => {
+    if (previous === 0 && current === 0) return 0;
+    if (previous === 0) return 100;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const revenueChange = percentChange(currentMonthRevenue, lastMonthRevenue);
+  const orderChange = percentChange(currentMonthOrderCount, lastMonthOrderCount);
+  const customerChange = percentChange(currentMonthCustomers, lastMonthCustomers);
+
+  const formatChange = (value: number) => {
+    const sign = value >= 0 ? "+" : "-";
+    return `${sign}${Math.abs(value).toFixed(1)}%`;
+  };
 
   if (!ready) {
     return (
@@ -303,6 +354,22 @@ export default function AdminPage() {
       .map((item) => item.trim())
       .filter(Boolean);
 
+  const parseImages = (value: string) => {
+    return value
+      .split(/[;\n]+/)
+      .flatMap((chunk) => {
+        const trimmed = chunk.trim();
+        if (!trimmed) return [] as string[];
+        if (trimmed.includes("data:image")) {
+          return [trimmed];
+        }
+        return trimmed
+          .split(/,+/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      });
+  };
+
   const resetForm = () => {
     setProductForm({
       id: undefined,
@@ -351,7 +418,7 @@ export default function AdminPage() {
     const sizes = parseList(productForm.sizes);
     const tags = parseList(productForm.tags);
     const highlights = parseList(productForm.highlights);
-    const images = parseList(productForm.images);
+    const images = parseImages(productForm.images);
 
     if (!name) {
       alert("Product name is required");
@@ -427,6 +494,31 @@ export default function AdminPage() {
     setTimeout(() => setFlash(null), 1600);
   };
 
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingImages(true);
+    try {
+      const readers = Array.from(files).map(
+        (file) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(new Error("Failed to read image"));
+            reader.readAsDataURL(file);
+          })
+      );
+      const dataUrls = await Promise.all(readers);
+      setProductForm((prev) => {
+        const existing = prev.images ? `${prev.images.trim()}\n` : "";
+        return { ...prev, images: `${existing}${dataUrls.join("\n")}` };
+      });
+    } catch (error) {
+      setFlash((error as Error).message);
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
   const handleDelete = async (product: Product) => {
     const ok = window.confirm(`Delete "${product.name}"? This cannot be undone.`);
     if (!ok) return;
@@ -490,7 +582,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-100/60">
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col">
         <div className="p-6">
@@ -597,21 +689,39 @@ export default function AdminPage() {
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">
-              AU
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white">Admin User</p>
-              <p className="text-xs text-slate-400">Store Manager</p>
-            </div>
-          </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+                  {user?.name?.slice(0, 2).toUpperCase() ?? "AD"}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{user?.name ?? "Admin"}</p>
+                  <p className="text-xs text-slate-400">{user?.email ?? "Store Manager"}</p>
+                </div>
+              </div>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-8">
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+          <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel</p>
+              <h1 className="text-lg font-semibold text-slate-900">Welcome back{user?.name ? `, ${user.name}` : ""}</h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                signOut();
+                router.replace("/login");
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto p-6 sm:p-8">
           {flash && (
             <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               {flash}
@@ -628,13 +738,15 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <button
                   onClick={() => setCurrentView("ledger")}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-left hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                       <p className="text-3xl font-bold text-gray-900 mt-2">{formatCurrency(totalRevenue)}</p>
-                      <p className="text-sm text-green-600 mt-2">+20.1% from last month</p>
+                      <p className={"text-sm mt-2 " + (revenueChange >= 0 ? "text-green-600" : "text-red-600")}>
+                        {formatChange(revenueChange)} from last month
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                       <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -646,13 +758,15 @@ export default function AdminPage() {
 
                 <button
                   onClick={() => setCurrentView("orders")}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-left hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2">+{totalOrders}</p>
-                      <p className="text-sm text-green-600 mt-2">+12.5% from last month</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-2">{totalOrders}</p>
+                      <p className={"text-sm mt-2 " + (orderChange >= 0 ? "text-green-600" : "text-red-600")}>
+                        {formatChange(orderChange)} from last month
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
                       <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -664,13 +778,15 @@ export default function AdminPage() {
 
                 <button
                   onClick={() => setCurrentView("customers")}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-left hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">Total Customers</p>
                       <p className="text-3xl font-bold text-gray-900 mt-2">{totalCustomers}</p>
-                      <p className="text-sm text-green-600 mt-2">+8.2% from last month</p>
+                      <p className={"text-sm mt-2 " + (customerChange >= 0 ? "text-green-600" : "text-red-600")}>
+                        {formatChange(customerChange)} from last month
+                      </p>
                     </div>
                     <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
                       <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -683,7 +799,7 @@ export default function AdminPage() {
 
               {/* Recent Activity */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                   <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Orders</h2>
                   <div className="space-y-4">
                     {orders.slice(0, 5).map((order) => (
@@ -709,7 +825,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                   <h2 className="text-lg font-bold text-gray-900 mb-4">Low Stock Alert</h2>
                   <div className="space-y-4">
                     {lowStockProducts.length === 0 ? (
@@ -1447,12 +1563,27 @@ export default function AdminPage() {
                 </label>
 
                 <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                  Images (comma/semicolon URLs)
+                  Images (comma, semicolon, or newline URLs)
                   <input
                     className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                     value={productForm.images}
                     onChange={(event) => setProductForm((prev) => ({ ...prev, images: event.target.value }))}
                   />
+                </label>
+
+                <label className="text-sm font-medium text-gray-700 md:col-span-2">
+                  Upload Images
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="mt-1 w-full rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                    onChange={(event) => handleImageUpload(event.target.files)}
+                    disabled={uploadingImages}
+                  />
+                  <span className="mt-1 block text-xs text-gray-500">
+                    Uploads are stored as data URLs. For best performance, use optimized image URLs when possible.
+                  </span>
                 </label>
 
                 <label className="text-sm font-medium text-gray-700">
@@ -1538,35 +1669,35 @@ export default function AdminPage() {
                       {selectedOrder.status}
                     </span>
                   </p>
-                </div>
-                {selectedOrder.notes && (
-                  <div className="col-span-2">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Order Notes</p>
-                    <p className="text-sm text-gray-900 mt-1">{selectedOrder.notes}</p>
-                  </div>
-                )}
-                {selectedOrder.awbNumber && (
-                  <div className="col-span-2">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">AWB Tracking Number</p>
-                    <p className="text-sm font-mono font-medium text-gray-900 mt-1">{selectedOrder.awbNumber}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Order Items */}
-              <div>
-                <h4 className="text-sm font-bold text-gray-900 mb-3">Order Items</h4>
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Product</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Variant</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Qty</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Price</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
+                          <tr key={order.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">#{order.id}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {formatDate(order.createdAt)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                order.status === "shipped" || order.status === "fulfilled"
+                                  ? "bg-green-100 text-green-800"
+                                  : order.status === "paid" || order.status === "processing" || order.status === "packed"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{order.items.length}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                              {formatCurrency(order.total)}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                className="text-indigo-600 hover:text-indigo-900 text-sm"
+                                onClick={() => openOrderDetail(order)}
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
                       {selectedOrder.items.map((item, idx) => {
                         const product = products.find((p) => p.id === item.productId);
                         const price = product ? getProductPrice(product).sale : 0;
@@ -1946,56 +2077,60 @@ export default function AdminPage() {
               <div>
                 <h4 className="text-lg font-bold text-gray-900 mb-4">Order History</h4>
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {selectedCustomer.orders
-                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                        .map((order) => (
-                          <tr key={order.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">#{order.id}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {formatDate(order.createdAt)}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs font-medium rounded ${
-                                order.status === "shipped" || order.status === "fulfilled"
-                                  ? "bg-green-100 text-green-800"
-                                  : order.status === "paid" || order.status === "processing" || order.status === "packed"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-amber-100 text-amber-800"
-                              }`}>
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{order.items.length} items</td>
-                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
-                              {formatCurrency(order.total)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => {
-                                  setShowCustomerDetail(false);
-                                  openOrderDetail(order);
-                                }}
-                                className="text-xs text-indigo-600 hover:text-indigo-900 font-medium"
-                              >
-                                View Order
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                  {selectedCustomer.orders.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-gray-500">No orders yet for this customer.</div>
+                  ) : (
+                    <table className="w-full">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {selectedCustomer.orders
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                          .map((order) => (
+                            <tr key={order.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">#{order.id}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                {formatDate(order.createdAt)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                  order.status === "shipped" || order.status === "fulfilled"
+                                    ? "bg-green-100 text-green-800"
+                                    : order.status === "paid" || order.status === "processing" || order.status === "packed"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{order.items.length} items</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
+                                {formatCurrency(order.total)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  onClick={() => {
+                                    setShowCustomerDetail(false);
+                                    openOrderDetail(order);
+                                  }}
+                                  className="text-xs text-indigo-600 hover:text-indigo-900 font-medium"
+                                >
+                                  View Order
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>

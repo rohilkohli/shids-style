@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -50,21 +51,23 @@ export default function LoginPage() {
 
     try {
       const nextUser = await loginUser(normalizedEmail, password.trim());
+      setRedirecting(true);
       if (nextUser?.role === "admin") {
-        router.push("/admin");
+        router.replace("/admin");
       } else {
-        router.push("/account");
+        router.replace("/account");
       }
     } catch (error) {
+      setRedirecting(false);
       setMessage((error as Error).message);
     }
   };
 
-  if (!ready) {
+  if (!ready || redirecting) {
     return (
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 text-center text-gray-600">
-          Loading...
+          {redirecting ? "Opening your panel..." : "Loading..."}
         </div>
       </main>
     );

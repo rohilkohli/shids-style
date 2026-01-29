@@ -11,12 +11,13 @@ type ProfileRow = {
   created_at?: string | null;
 };
 
-const mapUserRow = (row: ProfileRow): User => ({
+const mapUserRow = (row: ProfileRow): User & { createdAt?: string | null } => ({
   id: row.id,
   email: row.email,
   name: row.name ?? "SHIDS Member",
   phone: row.phone ?? undefined,
   role: row.role ?? "customer",
+  createdAt: row.created_at ?? null,
 });
 
 export async function GET() {
