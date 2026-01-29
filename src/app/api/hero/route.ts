@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 export async function GET() {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("hero_products")
     .select("id, position, product_id, product:products(*)")
@@ -18,6 +22,10 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as { productId?: string; position?: number };
   const productId = body.productId?.trim();
   const position = Number(body.position ?? 0);
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   if (!productId) {
     return NextResponse.json({ ok: false, error: "Product ID is required." }, { status: 400 });
@@ -50,6 +58,10 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const id = searchParams.get("id")?.trim();
   const productId = searchParams.get("productId")?.trim();
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   if (!id && !productId) {
     return NextResponse.json({ ok: false, error: "Hero entry id or productId is required." }, { status: 400 });
