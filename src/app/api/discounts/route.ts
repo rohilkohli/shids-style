@@ -18,6 +18,10 @@ const mapDiscountRow = (row: Record<string, any>): DiscountCode => ({
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const active = searchParams.get("active");
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   let query = supabaseAdmin.from("discount_codes").select("*").order("created_at", { ascending: false });
   if (active === "true") {
     query = query.eq("is_active", true);
@@ -42,6 +46,10 @@ export async function POST(request: NextRequest) {
 
   const id = body.id?.trim() || `CODE-${Date.now()}`;
   const createdAt = new Date().toISOString();
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("discount_codes")
