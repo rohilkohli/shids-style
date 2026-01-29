@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number(searchParams.get("limit") ?? 50), 100);
   const offset = Math.max(Number(searchParams.get("offset") ?? 0), 0);
 
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   let query = supabaseAdmin
     .from("orders")
     .select("*, order_items(*)")
@@ -68,6 +72,10 @@ export async function POST(request: NextRequest) {
   const email = body.email?.trim();
   const address = body.address?.trim();
   const items = Array.isArray(body.items) ? body.items.filter((item) => item?.productId && item?.quantity) : [];
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   if (!email || !address || items.length === 0) {
     return NextResponse.json({ ok: false, error: "Email, address, and items are required." }, { status: 400 });
