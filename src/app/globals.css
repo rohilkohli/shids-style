@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --font-inter: system-ui, -apple-system, sans-serif;
+  --font-playfair: Georgia, "Times New Roman", serif;
   --background: #f7f7f7;
   --foreground: #1a1a1a;
   --muted: #f9f9f9;
