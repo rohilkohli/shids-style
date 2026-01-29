@@ -41,6 +41,14 @@ type NewsletterEntry = {
   created_at: string;
 };
 
+type ProfileSummary = {
+  id: string;
+  email: string;
+  name?: string | null;
+  phone?: string | null;
+  role?: "admin" | "customer" | null;
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const {
@@ -77,6 +85,7 @@ export default function AdminPage() {
   const [awbNumber, setAwbNumber] = useState("");
   const [heroItems, setHeroItems] = useState<HeroEntry[]>([]);
   const [newsletterEmails, setNewsletterEmails] = useState<NewsletterEntry[]>([]);
+  const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [heroProductId, setHeroProductId] = useState("");
   const [heroPosition, setHeroPosition] = useState(0);
   const [marketingMessage, setMarketingMessage] = useState<string | null>(null);
@@ -122,6 +131,22 @@ export default function AdminPage() {
   }, [ready, user, router]);
 
   useEffect(() => {
+    if (!ready || !user || user.role !== "admin") return;
+    const loadProfiles = async () => {
+      try {
+        const response = await fetch("/api/users");
+        const json = await response.json();
+        if (response.ok && json?.ok) {
+          setProfiles(json.data as ProfileSummary[]);
+        }
+      } catch (error) {
+        console.warn("Failed to load profiles", error);
+      }
+    };
+    loadProfiles();
+  }, [ready, user]);
+
+  useEffect(() => {
     if (currentView !== "marketing") return;
     const loadMarketing = async () => {
       try {
@@ -163,33 +188,48 @@ export default function AdminPage() {
   }, [orders]);
 
   const totalOrders = orders.length;
-  const totalCustomers = useMemo(() => {
-    const emails = new Set(orders.map((o) => o.email));
-    return emails.size;
-  }, [orders]);
 
   const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= 5), [products]);
 
   const customers = useMemo((): Customer[] => {
     const customerMap = new Map<string, Customer>();
+
+    profiles.forEach((profile) => {
+      const email = profile.email?.toLowerCase();
+      if (!email) return;
+      if (!customerMap.has(email)) {
+        customerMap.set(email, {
+          email,
+          name: profile.name ?? email.split("@")[0],
+          totalOrders: 0,
+          totalSpent: 0,
+          orders: [],
+        });
+      }
+    });
+
     orders.forEach((order) => {
-      const existing = customerMap.get(order.email);
+      const email = order.email.toLowerCase();
+      const existing = customerMap.get(email);
       if (existing) {
         existing.totalOrders += 1;
         existing.totalSpent += order.total;
         existing.orders.push(order);
       } else {
-        customerMap.set(order.email, {
-          email: order.email,
-          name: order.email.split("@")[0],
+        customerMap.set(email, {
+          email,
+          name: email.split("@")[0],
           totalOrders: 1,
           totalSpent: order.total,
           orders: [order],
         });
       }
     });
+
     return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [orders]);
+  }, [orders, profiles]);
+
+  const totalCustomers = customers.length;
 
   if (!ready) {
     return (
@@ -975,7 +1015,9 @@ export default function AdminPage() {
                           {formatCurrency(customer.totalSpent)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(customer.orders[customer.orders.length - 1].createdAt)}
+                          {customer.orders.length
+                            ? formatDate(customer.orders[customer.orders.length - 1].createdAt)
+                            : "No orders"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
