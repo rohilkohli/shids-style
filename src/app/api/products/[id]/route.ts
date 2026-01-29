@@ -42,6 +42,10 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
 
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("products")
     .select("*")
@@ -60,6 +64,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const rawId = resolved?.id ?? "";
   const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   const { data: current } = await supabaseAdmin
     .from("products")
@@ -121,6 +129,10 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   const rawId = resolved?.id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ ok: false, error: "Service unavailable." }, { status: 503 });
+  }
 
   const { data: row } = await supabaseAdmin
     .from("products")
