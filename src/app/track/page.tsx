@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Order } from "../lib/types";
 import { formatCurrency, formatDateTime } from "../lib/utils";
 
-export default function TrackOrderPage() {
+function TrackOrderContent() {
   const searchParams = useSearchParams();
   const [orderId, setOrderId] = useState("");
   const [email, setEmail] = useState("");
@@ -134,5 +134,21 @@ export default function TrackOrderPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function TrackOrderPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[color:var(--background)]">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
+            <p className="text-center text-sm text-gray-600">Loading order tracker...</p>
+          </div>
+        </main>
+      }
+    >
+      <TrackOrderContent />
+    </Suspense>
   );
 }
