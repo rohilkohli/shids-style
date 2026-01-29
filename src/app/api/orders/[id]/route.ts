@@ -23,8 +23,9 @@ const mapOrderRow = (row: Record<string, any>): Order => ({
   awbNumber: row.awb_number ?? undefined,
 });
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
-  const rawId = params?.id ?? "";
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const resolved = await params;
+  const rawId = resolved?.id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
 
@@ -40,8 +41,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   return NextResponse.json({ ok: true, data: mapOrderRow(row) });
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const rawId = params?.id ?? "";
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const resolved = await params;
+  const rawId = resolved?.id ?? "";
   const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
 
@@ -83,8 +85,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ ok: true, data: mapOrderRow(updated) });
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const rawId = params?.id ?? "";
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const resolved = await params;
+  const rawId = resolved?.id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
   const { data: row } = await supabaseAdmin
