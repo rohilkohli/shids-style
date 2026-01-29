@@ -15,8 +15,12 @@ const mapDiscountRow = (row: Record<string, any>): DiscountCode => ({
   createdAt: row.created_at,
 });
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const rawId = params?.id ?? "";
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const rawId = id ?? "";
   const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
   let { data: row } = await supabaseAdmin
@@ -71,8 +75,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ ok: true, data: mapDiscountRow(updated) });
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const rawId = params?.id ?? "";
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const rawId = id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
   let { data: row } = await supabaseAdmin
