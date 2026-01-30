@@ -136,15 +136,21 @@ export function useCommerceStore() {
   const mapSupabaseUser = (sbUser: {
     id: string;
     email?: string | null;
-    user_metadata?: { name?: string; phone?: string };
-    app_metadata?: { role?: "admin" | "customer" };
-  }): User => ({
-    id: sbUser.id,
-    email: sbUser.email ?? "",
-    name: sbUser.user_metadata?.name || "SHIDS Member",
-    phone: sbUser.user_metadata?.phone || undefined,
-    role: sbUser.app_metadata?.role || undefined,
-  });
+    user_metadata?: { name?: string; phone?: string } | null;
+    app_metadata?: Record<string, unknown> | null;
+  }): User => {
+    const roleValue = sbUser.app_metadata && typeof sbUser.app_metadata["role"] === "string"
+      ? (sbUser.app_metadata["role"] as "admin" | "customer")
+      : undefined;
+
+    return {
+      id: sbUser.id,
+      email: sbUser.email ?? "",
+      name: sbUser.user_metadata?.name || "SHIDS Member",
+      phone: sbUser.user_metadata?.phone || undefined,
+      role: roleValue,
+    };
+  };
 
   const fetchProfile = useCallback(
     async (email: string) => {
