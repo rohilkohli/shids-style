@@ -258,7 +258,7 @@ export default function AccountPage() {
                         <div className="mt-3 text-sm text-gray-600">Total: {formatCurrency(order.total)}</div>
                         <div className="mt-4 flex flex-wrap gap-2">
                           <Link
-                            href={`/track?orderId=${encodeURIComponent(order.id)}&email=${encodeURIComponent(email)}`}
+                            href={`/track?orderId=${encodeURIComponent(order.id)}&email=${encodeURIComponent(resolvedEmail)}`}
                             className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50"
                           >
                             Track Order
