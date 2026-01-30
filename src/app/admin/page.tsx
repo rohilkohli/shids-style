@@ -1684,33 +1684,32 @@ export default function AdminPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {selectedOrder.items.map((item, idx) => {
-                        const product = products.find((p) => p.id === item.productId);
-                        const price = product ? getProductPrice(product).sale : 0;
-                        return (
-                          <tr key={idx}>
-                            <td className="px-4 py-3 text-sm text-gray-900">{product?.name || item.productId}</td>
-                            <td className="px-4 py-3 text-xs text-gray-500">
-                              {item.color && <span className="mr-2">Color: {item.color}</span>}
-                              {item.size && <span>Size: {item.size}</span>}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                              {formatCurrency(price * item.quantity)}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      const product = products.find((p) => p.id === item.productId);
+                      const price = product ? getProductPrice(product).sale : 0;
+                      return (
+                        <tr key={`${item.productId}-${item.color ?? ""}-${item.size ?? ""}-${idx}`}>
+                          <td className="px-4 py-3 text-sm text-gray-900">{product?.name || item.productId}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {item.color && <span className="mr-2">Color: {item.color}</span>}
+                            {item.size && <span>Size: {item.size}</span>}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                            {formatCurrency(price * item.quantity)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
-                    <tfoot className="bg-slate-50">
-                      <tr>
-                        <td colSpan={3} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">Total:</td>
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
-                          {formatCurrency(selectedOrder.total)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                  <tfoot className="bg-slate-50">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">Total:</td>
+                      <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
+                        {formatCurrency(selectedOrder.total)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
 
               <div className="border-t border-gray-200 pt-6">
