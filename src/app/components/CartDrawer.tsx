@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
@@ -15,11 +15,7 @@ type CartDrawerProps = {
 
 export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = false }: CartDrawerProps) {
   const { cart, products, updateCartQuantity, removeFromCart } = useCommerceStore();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const canPortal = typeof document !== "undefined";
 
   const itemCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const subtotal = useMemo(() => {
@@ -48,7 +44,7 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
         </button>
       )}
 
-      {mounted && isOpen &&
+      {canPortal && isOpen &&
         createPortal(
           <div className="fixed inset-0 z-[60]" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />

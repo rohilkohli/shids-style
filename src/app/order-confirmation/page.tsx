@@ -1,26 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
 import type { Order } from "../lib/types";
 
 export default function OrderConfirmationPage() {
   const { products } = useCommerceStore();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
+  const [order] = useState<Order | null>(() => {
+    if (typeof window === "undefined") return null;
     const stored = window.localStorage.getItem("shids-style/last-order");
-    if (stored) {
-      try {
-        setOrder(JSON.parse(stored));
-      } catch {
-        setOrder(null);
-      }
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored) as Order;
+    } catch {
+      return null;
     }
-  }, []);
+  });
+  const [copied, setCopied] = useState(false);
 
   const customerName = useMemo(() => {
     if (!order?.notes) return "";

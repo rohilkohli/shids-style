@@ -25,17 +25,12 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
     return () => clearInterval(timer);
   }, [slides.length, isPaused]);
 
-  useEffect(() => {
-    if (activeIndex >= slides.length) {
-      setActiveIndex(0);
-    }
-  }, [slides.length, activeIndex]);
-
   if (!slides.length) {
     return null;
   }
 
-  const current = slides[activeIndex];
+  const safeIndex = slides.length ? activeIndex % slides.length : 0;
+  const current = slides[safeIndex];
   const product = current.product;
 
   return (
@@ -109,7 +104,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
               setActiveIndex(index);
             }}
             className={`h-2.5 w-2.5 rounded-full transition ${
-              index === activeIndex ? "bg-white" : "bg-white/50"
+              index === safeIndex ? "bg-white" : "bg-white/50"
             }`}
             aria-label={`Show ${slide.product.name}`}
           />

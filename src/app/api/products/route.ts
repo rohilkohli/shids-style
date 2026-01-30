@@ -13,7 +13,28 @@ const parseList = (value: unknown): string[] =>
           .filter(Boolean)
       : [];
 
-const mapProductRow = (row: Record<string, any>): Product => ({
+type ProductRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  original_price: number | null;
+  discount_percent: number | null;
+  stock: number;
+  rating: number | null;
+  badge: string | null;
+  tags: string | null;
+  colors: string | null;
+  sizes: string | null;
+  highlights: string | null;
+  images: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+const mapProductRow = (row: ProductRow): Product => ({
   id: row.id,
   slug: row.slug,
   name: row.name,

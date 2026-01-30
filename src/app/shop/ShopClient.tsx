@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency } from "../lib/utils";
@@ -79,17 +79,12 @@ function ProductCard({
 export default function ShopClient() {
   const searchParams = useSearchParams();
   const { products, wishlist, addToCart, toggleWishlist } = useCommerceStore();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState<string | null>(null);
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOption>("featured");
   const [showCart, setShowCart] = useState(false);
 
-  useEffect(() => {
-    const param = searchParams.get("search");
-    if (param !== null) {
-      setSearch(param);
-    }
-  }, [searchParams]);
+  const resolvedSearch = search ?? (searchParams.get("search") ?? "");
 
   const categories = useMemo(
     () => ["All", ...Array.from(new Set(products.map((p) => p.category)))],
@@ -99,8 +94,8 @@ export default function ShopClient() {
   const filteredProducts = useMemo(() => {
     let list = products.filter((product) => {
       const matchesSearch =
-        product.name.toLowerCase().includes(search.toLowerCase()) ||
-        product.tags.some((tag) => tag.toLowerCase().includes(search.toLowerCase()));
+        product.name.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
+        product.tags.some((tag) => tag.toLowerCase().includes(resolvedSearch.toLowerCase()));
       const matchesCategory = category === "All" || product.category === category;
       return matchesSearch && matchesCategory;
     });
@@ -114,7 +109,7 @@ export default function ShopClient() {
     }
 
     return list;
-  }, [products, search, category, sort]);
+  }, [products, resolvedSearch, category, sort]);
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
@@ -130,7 +125,7 @@ export default function ShopClient() {
                 type="text"
                 placeholder="Search products..."
                 className="w-full sm:w-64 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition bg-white text-sm"
-                value={search}
+                value={resolvedSearch}
                 onChange={(e) => setSearch(e.target.value)}
               />
               <select

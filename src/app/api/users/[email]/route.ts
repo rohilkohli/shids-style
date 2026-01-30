@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { User } from "@/app/lib/types";
 
-const mapUserRow = (row: Record<string, any>): User => ({
+type ProfileRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  role: "admin" | "customer" | null;
+};
+
+const mapUserRow = (row: ProfileRow): User => ({
   id: row.id,
   email: row.email,
   name: row.name ?? "SHIDS Member",

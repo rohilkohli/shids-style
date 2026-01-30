@@ -21,10 +21,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   useEffect(() => {
     if (product) {
       addRecentlyViewed(product.id);
-      setSelectedColor(product.colors[0] ?? null);
-      setSelectedSize(product.sizes[0] ?? null);
-      setSelectedImageIndex(0);
-      setQuantity(1);
     }
   }, [product, addRecentlyViewed]);
 
@@ -33,12 +29,15 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     const sameCategory = products.filter((p: Product) => p.category === product.category && p.id !== product.id);
     const fallback = products.filter((p: Product) => p.id !== product.id);
     return (sameCategory.length ? sameCategory : fallback).slice(0, 4);
-  }, [products, product?.id, product?.category]);
+  }, [products, product]);
 
-  const productImages = useMemo(() => (product?.images ?? []).filter(Boolean), [product?.images]);
-  const activeImage = productImages[selectedImageIndex] ?? productImages[0];
+  const productImages = useMemo(() => (product?.images ?? []).filter(Boolean), [product]);
+  const safeImageIndex = productImages.length ? Math.min(selectedImageIndex, productImages.length - 1) : 0;
+  const activeImage = productImages[safeImageIndex] ?? productImages[0];
   const canSelectColor = Boolean(product?.colors?.length);
   const canSelectSize = Boolean(product?.sizes?.length);
+  const selectedColorValue = selectedColor ?? product?.colors?.[0] ?? null;
+  const selectedSizeValue = selectedSize ?? product?.sizes?.[0] ?? null;
 
   if (!ready) {
     return (
@@ -112,7 +111,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   type="button"
                   className={classNames(
                     "aspect-square overflow-hidden rounded-2xl border bg-white",
-                    selectedImageIndex === index ? "border-black" : "border-gray-200 hover:border-gray-400"
+                    safeImageIndex === index ? "border-black" : "border-gray-200 hover:border-gray-400"
                   )}
                   onClick={() => setSelectedImageIndex(index)}
                 >
@@ -155,7 +154,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         key={color}
                         className={classNames(
                           "rounded-full border px-4 py-2 text-xs font-semibold",
-                          selectedColor === color
+                          selectedColorValue === color
                             ? "border-black bg-black text-white"
                             : "border-gray-300 bg-white text-gray-700 hover:border-black"
                         )}
@@ -182,7 +181,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         key={size}
                         className={classNames(
                           "min-w-[56px] rounded-full border px-4 py-2 text-xs font-semibold",
-                          selectedSize === size
+                          selectedSizeValue === size
                             ? "border-black bg-black text-white"
                             : "border-gray-300 bg-white text-gray-700 hover:border-black"
                         )}
@@ -219,11 +218,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     className="flex-1 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={product.stock === 0}
                     onClick={() => {
-                      if (canSelectColor && !selectedColor) {
+                      if (canSelectColor && !selectedColorValue) {
                         setActionMessage("Please choose a color.");
                         return;
                       }
-                      if (canSelectSize && !selectedSize) {
+                      if (canSelectSize && !selectedSizeValue) {
                         setActionMessage("Please choose a size.");
                         return;
                       }
@@ -231,8 +230,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       addToCart({
                         productId: product.id,
                         quantity: nextQty,
-                        color: selectedColor ?? undefined,
-                        size: selectedSize ?? undefined,
+                        color: selectedColorValue ?? undefined,
+                        size: selectedSizeValue ?? undefined,
                       });
                       setActionMessage("Added to cart.");
                       setTimeout(() => setActionMessage(null), 2000);
@@ -259,8 +258,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     onClick={() => {
                       const details = [
                         `Product: ${product.name}`,
-                        selectedColor ? `Color: ${selectedColor}` : null,
-                        selectedSize ? `Size: ${selectedSize}` : null,
+                        selectedColorValue ? `Color: ${selectedColorValue}` : null,
+                        selectedSizeValue ? `Size: ${selectedSizeValue}` : null,
                       ]
                         .filter(Boolean)
                         .join(" | ");

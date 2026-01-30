@@ -41,27 +41,39 @@ type PersistedState = {
   recentlyViewed: string[];
 };
 
-const initialState: PersistedState = {
-  products: defaultProducts,
-  orders: defaultOrders,
-  cart: [],
-  wishlist: [],
-  discountCodes: [],
-  user: null,
-  recentlyViewed: [],
-};
-
 export function useCommerceStore() {
-  const instanceIdRef = useRef(`inst-${Date.now()}-${Math.random()}`);
+  const instanceIdRef = useRef<string | null>(null);
   const suppressBroadcastRef = useRef(false);
-  const [ready, setReady] = useState(false);
-  const [products, setProducts] = useState<Product[]>(defaultProducts);
-  const [orders, setOrders] = useState<Order[]>(defaultOrders);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [wishlist, setWishlist] = useState<string[]>([]);
-  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
+  const storedState = useMemo<Partial<PersistedState> | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as Partial<PersistedState>;
+    } catch (error) {
+      console.warn("Failed to read stored state", error);
+      return null;
+    }
+  }, []);
+
+  const [ready] = useState(true);
+  const [products, setProducts] = useState<Product[]>(
+    storedState?.products?.length ? storedState.products : defaultProducts
+  );
+  const [orders, setOrders] = useState<Order[]>(
+    storedState?.orders?.length ? storedState.orders : defaultOrders
+  );
+  const [cart, setCart] = useState<CartItem[]>(storedState?.cart ?? []);
+  const [wishlist, setWishlist] = useState<string[]>(storedState?.wishlist ?? []);
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(storedState?.discountCodes ?? []);
+  const [user, setUser] = useState<User | null>(storedState?.user ?? null);
+  const [recentlyViewed, setRecentlyViewed] = useState<string[]>(storedState?.recentlyViewed ?? []);
+
+  useEffect(() => {
+    if (!instanceIdRef.current) {
+      instanceIdRef.current = `inst-${Date.now()}-${Math.random()}`;
+    }
+  }, []);
 
   const apiRequest = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(url, {
@@ -76,25 +88,6 @@ export function useCommerceStore() {
       throw new Error(data.ok ? "Request failed." : data.error);
     }
     return data.data;
-  }, []);
-
-  useEffect(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as Partial<PersistedState>;
-        setProducts(parsed.products?.length ? parsed.products : defaultProducts);
-        setOrders(parsed.orders?.length ? parsed.orders : defaultOrders);
-        setCart(parsed.cart ?? []);
-        setWishlist(parsed.wishlist ?? []);
-        setDiscountCodes(parsed.discountCodes ?? []);
-        setUser(parsed.user ?? null);
-        setRecentlyViewed(parsed.recentlyViewed ?? []);
-      } catch (error) {
-        console.warn("Failed to read stored state", error);
-      }
-    }
-    setReady(true);
   }, []);
 
   useEffect(() => {
@@ -131,14 +124,21 @@ export function useCommerceStore() {
     );
   }, [products, orders, cart, wishlist, discountCodes, user, recentlyViewed, ready]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!ready) return;
     const productIds = new Set(products.map((product) => product.id));
     setCart((prev) => prev.filter((item) => productIds.has(item.productId)));
     setWishlist((prev) => prev.filter((id) => productIds.has(id)));
   }, [products, ready]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const mapSupabaseUser = (sbUser: any): User => ({
+  const mapSupabaseUser = (sbUser: {
+    id: string;
+    email?: string | null;
+    user_metadata?: { name?: string; phone?: string };
+    app_metadata?: { role?: "admin" | "customer" };
+  }): User => ({
     id: sbUser.id,
     email: sbUser.email ?? "",
     name: sbUser.user_metadata?.name || "SHIDS Member",

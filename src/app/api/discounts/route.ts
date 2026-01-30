@@ -2,7 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { DiscountCode } from "@/app/lib/types";
 
-const mapDiscountRow = (row: Record<string, any>): DiscountCode => ({
+type DiscountRow = {
+  id: string;
+  code: string;
+  description: string | null;
+  type: "percentage" | "fixed";
+  value: number;
+  max_uses: number | null;
+  used_count: number | null;
+  expiry_date: string | null;
+  is_active: boolean | null;
+  created_at: string;
+};
+
+const mapDiscountRow = (row: DiscountRow): DiscountCode => ({
   id: row.id,
   code: row.code,
   description: row.description ?? undefined,

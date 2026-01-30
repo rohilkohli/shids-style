@@ -1,5 +1,10 @@
 "use client";
 
+export default function AdminPageBackup() {
+  return null;
+}
+/* "use client";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
@@ -478,3 +483,4 @@ export default function AdminPage() {
     </main>
   );
 }
+*/

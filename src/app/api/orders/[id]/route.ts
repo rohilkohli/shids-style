@@ -2,9 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Order, OrderStatus } from "@/app/lib/types";
 
-const mapOrderRow = (row: Record<string, any>): Order => ({
+type OrderItemRow = {
+  product_id: string;
+  quantity: number;
+  color: string | null;
+  size: string | null;
+};
+
+type OrderRow = {
+  id: string;
+  order_items?: OrderItemRow[];
+  subtotal: number | null;
+  shipping_fee: number | null;
+  total: number;
+  email: string;
+  address: string;
+  status: OrderStatus;
+  created_at: string;
+  notes: string | null;
+  payment_proof: string | null;
+  payment_verified: boolean | null;
+  awb_number: string | null;
+};
+
+const mapOrderRow = (row: OrderRow): Order => ({
   id: row.id,
-  items: (row.order_items ?? []).map((item: any) => ({
+  items: (row.order_items ?? []).map((item: OrderItemRow) => ({
     productId: item.product_id,
     quantity: item.quantity,
     color: item.color ?? undefined,

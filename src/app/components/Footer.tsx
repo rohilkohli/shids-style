@@ -87,8 +87,8 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-white/15 text-center text-xs sm:text-sm text-white/60">
-          © 2026 SHIDS STYLE. All rights reserved. Made by Mr. Rohil ❤️
+        <div className="mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-white/15 text-center text-xs sm:text-sm text-white">
+          © 2026 SHIDS STYLE. All rights reserved. Made by Mr. Kohli with ❤️
         </div>
       </div>
     </footer>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
@@ -10,44 +10,52 @@ import CartDrawer from "../components/CartDrawer";
 export default function ShippingPage() {
   const router = useRouter();
   const { cart, products, user } = useCommerceStore();
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "",
+  const [form, setForm] = useState<{
+    fullName: string | null;
+    email: string | null;
+    phone: string | null;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  }>(() => {
+    const base = {
+      fullName: null,
+      email: null,
+      phone: null,
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      country: "",
+    };
+    if (typeof window === "undefined") return base;
+    const stored = window.localStorage.getItem("shids-style/shipping");
+    if (!stored) return base;
+    try {
+      const parsed = JSON.parse(stored) as { email?: string; phone?: string; name?: string; address?: string };
+      return {
+        ...base,
+        fullName: parsed.name ?? null,
+        email: parsed.email ?? null,
+        phone: parsed.phone ?? null,
+      };
+    } catch {
+      return base;
+    }
   });
   const [message, setMessage] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setForm((prev) => ({
-        ...prev,
-        fullName: prev.fullName || user.name,
-        email: prev.email || user.email,
-        phone: prev.phone || (user.phone ?? ""),
-      }));
-    }
-    const stored = window.localStorage.getItem("shids-style/shipping");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as { email?: string; phone?: string; name?: string; address?: string };
-        setForm((prev) => ({
-          ...prev,
-          fullName: prev.fullName || parsed.name || "",
-          email: prev.email || parsed.email || "",
-          phone: prev.phone || parsed.phone || "",
-        }));
-      } catch {
-        // ignore invalid storage
-      }
-    }
-  }, [user]);
+  const resolvedForm = {
+    ...form,
+    fullName: form.fullName ?? user?.name ?? "",
+    email: form.email ?? user?.email ?? "",
+    phone: form.phone ?? user?.phone ?? "",
+  };
 
   const subtotal = useMemo(() => {
     return cart.reduce((sum, item) => {
@@ -63,21 +71,21 @@ export default function ShippingPage() {
 
   const handleSubmit = () => {
     setMessage(null);
-    if (!form.email.trim() || !form.phone.trim()) {
+    if (!resolvedForm.email.trim() || !resolvedForm.phone.trim()) {
       setMessage("Email and contact number are required.");
       return;
     }
-    if (!form.addressLine1.trim() || !form.city.trim() || !form.state.trim() || !form.postalCode.trim()) {
+    if (!resolvedForm.addressLine1.trim() || !resolvedForm.city.trim() || !resolvedForm.state.trim() || !resolvedForm.postalCode.trim()) {
       setMessage("Please fill in all required address fields.");
       return;
     }
 
     const fullAddress = [
-      form.addressLine1,
-      form.addressLine2,
-      `${form.city}, ${form.state}`,
-      form.postalCode,
-      form.country || "India",
+      resolvedForm.addressLine1,
+      resolvedForm.addressLine2,
+      `${resolvedForm.city}, ${resolvedForm.state}`,
+      resolvedForm.postalCode,
+      resolvedForm.country || "India",
     ]
       .filter(Boolean)
       .join(", ");
@@ -85,9 +93,9 @@ export default function ShippingPage() {
     window.localStorage.setItem(
       "shids-style/shipping",
       JSON.stringify({
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        name: form.fullName.trim() || "Guest",
+        email: resolvedForm.email.trim(),
+        phone: resolvedForm.phone.trim(),
+        name: resolvedForm.fullName.trim() || "Guest",
         address: fullAddress,
       })
     );
@@ -151,7 +159,7 @@ export default function ShippingPage() {
                   autoComplete="name"
                   placeholder="Rahul Sharma"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                  value={form.fullName}
+                    value={resolvedForm.fullName}
                   onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
                 />
               </label>
@@ -163,7 +171,7 @@ export default function ShippingPage() {
                   autoComplete="email"
                   placeholder="you@email.com"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                  value={form.email}
+                    value={resolvedForm.email}
                   onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
               </label>
@@ -176,7 +184,7 @@ export default function ShippingPage() {
                   autoComplete="tel"
                   placeholder="+91 98765 43210"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                  value={form.phone}
+                    value={resolvedForm.phone}
                   onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
                 />
               </label>

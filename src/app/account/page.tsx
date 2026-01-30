@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency, formatDateTime } from "../lib/utils";
 import CartDrawer from "../components/CartDrawer";
@@ -13,9 +13,9 @@ type CancelRequest = Record<string, boolean>;
 export default function AccountPage() {
   const { orders, user, ready, signOut, updateUser } = useCommerceStore();
   const [section, setSection] = useState<Section>("overview");
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [cancelRequests, setCancelRequests] = useState<CancelRequest>({});
   const [showMenu, setShowMenu] = useState(false);
@@ -23,16 +23,13 @@ export default function AccountPage() {
   const [addressForm, setAddressForm] = useState({ label: "Home", note: "" });
   const [showCart, setShowCart] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    setEmail(user.email);
-    setName(user.name);
-    setPhone(user.phone ?? "");
-  }, [user]);
+  const resolvedEmail = email ?? user?.email ?? "";
+  const resolvedName = name ?? user?.name ?? "";
+  const resolvedPhone = phone ?? user?.phone ?? "";
 
   const userOrders = useMemo(
-    () => orders.filter((order) => order.email.toLowerCase() === email.toLowerCase()),
-    [orders, email]
+    () => orders.filter((order) => order.email.toLowerCase() === resolvedEmail.toLowerCase()),
+    [orders, resolvedEmail]
   );
 
   if (!ready) {
@@ -233,10 +230,10 @@ export default function AccountPage() {
                 <div className="rounded-xl border border-gray-100 p-4 bg-white/70">
                   <label className="text-sm font-medium text-gray-700">
                     Email
-                    <input
-                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                       <input
+                         className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                         value={resolvedEmail}
+                         onChange={(e) => setEmail(e.target.value)}
                     />
                   </label>
                 </div>
@@ -290,29 +287,29 @@ export default function AccountPage() {
                   <p className="text-sm text-gray-500">Update your personal details.</p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Full Name
-                    <input
-                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </label>
+                      <label className="text-sm font-medium text-gray-700">
+                        Full Name
+                        <input
+                          className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                          value={resolvedName}
+                          onChange={(e) => setName(e.target.value)}
+                        />
+                      </label>
                   <label className="text-sm font-medium text-gray-700">
                     Email
                     <input
                       type="email"
                       className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                         value={resolvedEmail}
+                         onChange={(e) => setEmail(e.target.value)}
                     />
                   </label>
                   <label className="text-sm font-medium text-gray-700">
                     Phone
                     <input
                       className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                         value={resolvedPhone}
+                         onChange={(e) => setPhone(e.target.value)}
                     />
                   </label>
                 </div>
@@ -386,7 +383,7 @@ export default function AccountPage() {
                   className="rounded-full btn-primary px-6 py-3 text-sm font-medium transition"
                   onClick={async () => {
                     try {
-                      await updateUser({ name, email, phone });
+                      await updateUser({ name: resolvedName, email: resolvedEmail, phone: resolvedPhone });
                       setMessage("Profile updated successfully.");
                       setTimeout(() => setMessage(null), 2000);
                     } catch (error) {

@@ -11,7 +11,15 @@ const supabaseAnonKey =
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const mapUserRow = (row: Record<string, any>): User => ({
+type ProfileRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  role: "admin" | "customer" | null;
+};
+
+const mapUserRow = (row: ProfileRow): User => ({
   id: row.id,
   email: row.email,
   name: row.name ?? "SHIDS Member",

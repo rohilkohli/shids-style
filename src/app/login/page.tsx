@@ -2,37 +2,31 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useCommerceStore } from "../lib/store";
 
 export default function LoginPage() {
   const router = useRouter();
   const { ready, user, loginUser } = useCommerceStore();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setEmail(user.email);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    const storedEmail = window.localStorage.getItem("shids-style/login-email");
-    if (storedEmail) {
-      setEmail(storedEmail);
-    }
+  const storedEmail = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("shids-style/login-email") ?? "";
   }, []);
+
+  const resolvedEmail = email ?? user?.email ?? storedEmail;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = resolvedEmail.trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes("@")) {
       setMessage("Please enter a valid email address.");
       return;
@@ -93,9 +87,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[color:var(--background)]">
+    <main className="min-h-screen bg-gradient-to-b from-pink-500 to-black">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:py-16">
-        <div className="mb-6 flex items-center justify-between lg:hidden">
+        <div className="mb-6 flex items-center justify-between">
           <Link href="/" className="text-lg font-display font-bold text-gray-900">
             SHIDS STYLE
           </Link>
@@ -136,7 +130,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
-                  value={email}
+                  value={resolvedEmail}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
                   required
