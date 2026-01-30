@@ -89,6 +89,7 @@ export default function AdminPage() {
   const [newsletterEmails, setNewsletterEmails] = useState<NewsletterEntry[]>([]);
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [heroProductId, setHeroProductId] = useState("");
   const [heroPosition, setHeroPosition] = useState(0);
   const [marketingMessage, setMarketingMessage] = useState<string | null>(null);
@@ -583,8 +584,19 @@ export default function AdminPage() {
 
   return (
     <div className="flex h-screen bg-slate-100/60">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col">
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col transform transition lg:static lg:translate-x-0 lg:w-64 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="p-6">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-2xl font-bold">SHIDS</span>
@@ -704,10 +716,20 @@ export default function AdminPage() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-          <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel</p>
-              <h1 className="text-lg font-semibold text-slate-900">Welcome back{user?.name ? `, ${user.name}` : ""}</h1>
+          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+              >
+                <span className="text-lg">☰</span>
+              </button>
+              <div>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel</p>
+                <h1 className="text-base sm:text-lg font-semibold text-slate-900">Welcome back{user?.name ? `, ${user.name}` : ""}</h1>
+              </div>
             </div>
             <button
               type="button"
@@ -721,7 +743,7 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto p-6 sm:p-8">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
           {flash && (
             <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               {flash}
