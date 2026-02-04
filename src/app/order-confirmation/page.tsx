@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
@@ -140,9 +141,16 @@ export default function OrderConfirmationPage() {
                 <div className="mt-4 space-y-4">
                   {items.map(({ item, product, price }) => (
                     <div key={`${item.productId}-${item.size}-${item.color}`} className="flex gap-4">
-                      <div className="h-20 w-16 overflow-hidden rounded-lg bg-gray-100">
+                      <div className="relative h-20 w-16 overflow-hidden rounded-lg bg-gray-100">
                         {product?.images?.[0] ? (
-                          <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                          <Image
+                            src={product.images?.[0] ?? "/file.svg"}
+                            alt={product.name}
+                            fill
+                            sizes="64px"
+                            quality={80}
+                            className="object-cover"
+                          />
                         ) : (
                           <div className="h-full w-full bg-gray-200" />
                         )}

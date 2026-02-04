@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
@@ -58,11 +59,16 @@ export default function CartPage() {
           <div className="rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-100 glass-card">
             {items.map((item) => (
               <div key={`${item!.productId}-${item!.color}-${item!.size}`} className="flex gap-4 p-5">
-                <img
-                  src={item!.product.images[0]}
-                  alt={item!.product.name}
-                  className="w-20 h-24 object-cover rounded-lg bg-gray-50"
-                />
+                <div className="relative w-20 h-24 rounded-lg bg-gray-50 overflow-hidden">
+                  <Image
+                    src={item!.product.images?.[0] ?? "/file.svg"}
+                    alt={item!.product.name}
+                    fill
+                    sizes="80px"
+                    quality={80}
+                    className="object-cover"
+                  />
+                </div>
                 <div className="flex-1">
                   <div className="flex items-start justify-between">
                     <div>

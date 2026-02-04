@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
@@ -588,7 +589,7 @@ export default function AdminPage() {
 
       const reader = new FileReader();
       reader.onload = () => {
-        const img = new Image();
+        const img = new window.Image();
         img.onload = () => {
           const width = img.width || maxSize;
           const height = img.height || maxSize;
@@ -1022,11 +1023,16 @@ export default function AdminPage() {
                           className="w-full flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg transition text-left"
                         >
                           <div className="flex items-center gap-3">
-                            <img
-                              src={product.images[0]}
-                              alt={product.name}
-                              className="w-10 h-10 rounded object-cover bg-gray-100"
-                            />
+                            <div className="relative w-10 h-10 rounded overflow-hidden bg-gray-100">
+                              <Image
+                                src={product.images?.[0] ?? "/file.svg"}
+                                alt={product.name}
+                                fill
+                                sizes="40px"
+                                quality={80}
+                                className="object-cover"
+                              />
+                            </div>
                             <div>
                               <p className="text-sm font-medium text-gray-900">{product.name}</p>
                               <p className="text-xs text-gray-500">{product.stock} units left</p>
@@ -1123,11 +1129,16 @@ export default function AdminPage() {
                         <tr key={product.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <img
-                                src={product.images[0]}
-                                alt={product.name}
-                                className="w-10 h-10 rounded object-cover bg-gray-100"
-                              />
+                              <div className="relative w-10 h-10 rounded overflow-hidden bg-gray-100">
+                                <Image
+                                  src={product.images?.[0] ?? "/file.svg"}
+                                  alt={product.name}
+                                  fill
+                                  sizes="40px"
+                                  quality={80}
+                                  className="object-cover"
+                                />
+                              </div>
                               <div>
                                 <p className="text-sm font-medium text-gray-900">{product.name}</p>
                                 <p className="text-xs text-gray-500">SKU: {product.id}</p>
@@ -1952,8 +1963,15 @@ export default function AdminPage() {
                         {parseImages(productForm.images)
                           .slice(0, 6)
                           .map((src, index) => (
-                            <div key={`${src}-${index}`} className="aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                              <img src={src} alt={`Upload ${index + 1}`} className="h-full w-full object-cover" />
+                            <div key={`${src}-${index}`} className="aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50 relative">
+                              <Image
+                                src={src}
+                                alt={`Upload ${index + 1}`}
+                                fill
+                                sizes="(min-width: 640px) 120px, 50vw"
+                                quality={75}
+                                className="object-cover"
+                              />
                             </div>
                           ))}
                       </div>

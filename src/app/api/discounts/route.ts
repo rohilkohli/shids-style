@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { DiscountCode } from "@/app/lib/types";
 
+export const revalidate = 60;
+
 type DiscountRow = {
   id: string;
   code: string;

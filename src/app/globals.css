@@ -1,3 +1,12 @@
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
+
 @import "tailwindcss";
 
 :root {
@@ -90,6 +99,18 @@ a {
 .hover-3d:hover {
   transform: translateY(-6px) perspective(900px) rotateX(2deg) rotateY(-2deg);
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+}
+
+@media (max-width: 640px) {
+  .glass,
+  .glass-card {
+    backdrop-filter: none;
+  }
+
+  .hover-3d:hover {
+    transform: none;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  }
 }
 
 .gradient-border {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
@@ -39,11 +40,14 @@ function ProductCard({
       </div>
 
       <Link href={`/products/${product.slug}`}>
-        <div className="aspect-[3/4] overflow-hidden bg-gray-50">
-          <img
-            src={product.images[0]}
+        <div className="aspect-[3/4] overflow-hidden bg-gray-50 relative">
+          <Image
+            src={product.images?.[0] ?? "/file.svg"}
             alt={product.name}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            fill
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+            quality={80}
+            className="object-cover transition duration-500 group-hover:scale-105"
           />
         </div>
       </Link>

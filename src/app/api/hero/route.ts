@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 
+export const revalidate = 60;
+
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from("hero_products")

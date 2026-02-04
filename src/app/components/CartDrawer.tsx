@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { getProductPrice, useCommerceStore } from "../lib/store";
@@ -66,10 +67,12 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
               <div className="p-4 sm:p-5 space-y-4 overflow-y-auto h-[calc(100%-170px)]">
                 {cart.length === 0 ? (
                   <div className="flex flex-col items-center text-center gap-4 py-6">
-                    <img
+                    <Image
                       src="/empty-cart.png"
                       alt="Empty cart"
-                      className="w-40 h-40 object-contain"
+                      width={160}
+                      height={160}
+                      className="object-contain"
                     />
                     <p className="text-sm text-gray-600">Your cart is empty.</p>
                     <Link
@@ -87,7 +90,16 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
                     const { sale } = getProductPrice(product);
                     return (
                       <div key={`${item.productId}-${item.size}-${item.color}`} className="flex gap-3 text-xs sm:text-sm">
-                        <img src={product.images[0]} alt={product.name} className="w-16 h-20 object-cover rounded" />
+                        <div className="relative w-16 h-20 rounded overflow-hidden bg-gray-50">
+                          <Image
+                            src={product.images?.[0] ?? "/file.svg"}
+                            alt={product.name}
+                            fill
+                            sizes="64px"
+                            quality={80}
+                            className="object-cover"
+                          />
+                        </div>
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">{product.name}</p>
                           <p className="text-xs text-gray-500">

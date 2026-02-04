@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
@@ -19,6 +20,7 @@ export default function PaymentPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [txnRef, setTxnRef] = useState<string | null>(null);
   const [shippingInfo, setShippingInfo] = useState<{
     email: string;
     phone: string;
@@ -59,6 +61,10 @@ export default function PaymentPage() {
     return () => clearTimeout(timeout);
   }, [secondsLeft, expired, router]);
 
+  useEffect(() => {
+    setTxnRef(`SHIDS-${Date.now()}`);
+  }, []);
+
   const subtotal = useMemo(() => {
     return cart.reduce((sum, item) => {
       const product = products.find((p) => p.id === item.productId);
@@ -76,9 +82,9 @@ export default function PaymentPage() {
 
   const shippingFee = subtotal > FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
   const totalAmount = subtotal + shippingFee;
-  const txnRef = `SHIDS-${Date.now()}`;
-  const upiLink = `upi://pay?pa=shids@upi&pn=SHIDS%20STYLE&mc=&tid=${txnRef}&tr=${txnRef}&tn=Payment%20for%20SHIDS%20STYLE&am=${totalAmount.toFixed(2)}&cu=INR`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`;
+  const resolvedTxnRef = txnRef ?? "SHIDS-PENDING";
+  const upiLink = `upi://pay?pa=8810713286@ibl&pn=SHIDS%20STYLE&mc=&tid=${resolvedTxnRef}&tr=${resolvedTxnRef}&tn=Payment%20for%20SHIDS%20STYLE&am=${totalAmount.toFixed(2)}&cu=INR`;
+  const qrCodeUrl = "/payment-qr.png";
 
   const handleConfirm = async () => {
     setMessage(null);
@@ -200,8 +206,8 @@ export default function PaymentPage() {
                 <div className="rounded-2xl border border-gray-200 bg-white/80 p-5 space-y-4">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-500">Pay via UPI ID</p>
-                    <p className="text-base font-semibold text-gray-900">shids@upi</p>
-                    <p className="text-xs text-gray-500">Reference: {txnRef}</p>
+                    <p className="text-base font-semibold text-gray-900">8810713286@ibl</p>
+                    <p className="text-xs text-gray-500">Reference: {resolvedTxnRef}</p>
                   </div>
                   <a
                     href={upiLink}
@@ -326,8 +332,15 @@ export default function PaymentPage() {
                     const price = getProductPrice(product);
                     return (
                       <div key={`${item.productId}-${item.color ?? ""}-${item.size ?? ""}`} className="flex gap-3 text-sm">
-                        <div className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-white">
-                          <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                        <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                          <Image
+                            src={product.images?.[0] ?? "/file.svg"}
+                            alt={product.name}
+                            fill
+                            sizes="48px"
+                            quality={80}
+                            className="object-cover"
+                          />
                         </div>
                         <div className="flex-1">
                           <p className="text-xs font-semibold text-gray-900 line-clamp-1">{product.name}</p>

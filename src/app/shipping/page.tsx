@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
@@ -294,8 +295,15 @@ export default function ShippingPage() {
                 const price = getProductPrice(product);
                 return (
                   <div key={`${item.productId}-${item.color ?? ""}-${item.size ?? ""}`} className="flex gap-3">
-                    <div className="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 bg-white">
-                      <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                    <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <Image
+                        src={product.images?.[0] ?? "/file.svg"}
+                        alt={product.name}
+                        fill
+                        sizes="64px"
+                        quality={80}
+                        className="object-cover"
+                      />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</p>

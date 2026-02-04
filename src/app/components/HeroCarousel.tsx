@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { Product } from "../lib/types";
 import { formatCurrency } from "../lib/utils";
@@ -42,10 +43,14 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
       aria-label="Hero carousel"
     >
       <Link href={`/products/${product.slug}`} className="absolute inset-0">
-        <img
-          src={product.images[0]}
+        <Image
+          src={product.images?.[0] ?? "/file.svg"}
           alt={product.name}
-          className="absolute inset-0 h-full w-full object-cover object-center transition duration-700"
+          fill
+          priority
+          sizes="100vw"
+          quality={85}
+          className="absolute inset-0 object-cover object-center transition duration-700"
         />
       </Link>
       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />

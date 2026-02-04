@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { slugify } from "@/app/lib/utils";
 import type { Product } from "@/app/lib/types";
 
+export const revalidate = 30;
+
 const parseList = (value: unknown): string[] =>
   Array.isArray(value)
     ? value.map((item) => String(item)).filter(Boolean)

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
@@ -78,10 +79,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           <div className="space-y-4">
             <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg group">
               {activeImage ? (
-                <img
+                <Image
                   src={activeImage}
                   alt={product.name}
-                  className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  quality={85}
+                  className="object-cover transition duration-700 group-hover:scale-105"
                 />
               ) : (
                 <div className="flex h-full min-h-[360px] items-center justify-center bg-gray-100 text-sm text-gray-500">
@@ -128,7 +133,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   onClick={() => setSelectedImageIndex(index)}
                   aria-pressed={safeImageIndex === index}
                 >
-                  <img src={img} alt={`${product.name} ${index + 1}`} className="h-full w-full object-cover" />
+                  <div className="relative h-full w-full">
+                    <Image
+                      src={img}
+                      alt={`${product.name} ${index + 1}`}
+                      fill
+                      sizes="(min-width: 640px) 80px, 64px"
+                      quality={75}
+                      className="object-cover"
+                    />
+                  </div>
                 </button>
               ))}
             </div>
@@ -382,8 +396,15 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     href={`/products/${item.slug}`}
                     className="block rounded-xl border border-gray-200 p-3 bg-white/95 shadow-sm hover:shadow-md transition"
                   >
-                    <div className="aspect-square overflow-hidden rounded-lg bg-gray-50 border border-gray-200">
-                      <img src={item.images[0]} alt={item.name} className="h-full w-full object-cover" />
+                    <div className="aspect-square overflow-hidden rounded-lg bg-gray-50 border border-gray-200 relative">
+                      <Image
+                        src={item.images?.[0] ?? "/file.svg"}
+                        alt={item.name}
+                        fill
+                        sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+                        quality={80}
+                        className="object-cover"
+                      />
                     </div>
                     <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-semibold">{item.category}</p>
                     <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.name}</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import CartDrawer from "../components/CartDrawer";
 import { getProductPrice, useCommerceStore } from "../lib/store";
@@ -46,8 +47,15 @@ export default function WishlistPage() {
                 return (
                   <div key={product.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-gray-200 hover:shadow-md">
                     <Link href={`/products/${product.slug}`}>
-                      <div className="aspect-[4/3] overflow-hidden rounded-xl bg-gray-50">
-                        <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
+                      <div className="aspect-[4/3] overflow-hidden rounded-xl bg-gray-50 relative">
+                        <Image
+                          src={product.images?.[0] ?? "/file.svg"}
+                          alt={product.name}
+                          fill
+                          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                          quality={80}
+                          className="object-cover"
+                        />
                       </div>
                     </Link>
                     <div className="mt-4 space-y-2">

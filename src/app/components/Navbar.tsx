@@ -40,7 +40,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-black">
+      <header className="sticky top-0 z-50 bg-white sm:bg-white/95 sm:backdrop-blur-sm border-b border-black">
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-16">
             <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export default function Navbar() {
                 aria-label="Wishlist"
               >
                 <img src="/wishlist-icon.png" alt="Wishlist" className="h-5 w-5" />
-                {wishlistCount > 0 && (
+                {mounted && wishlistCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-[color:var(--primary)] text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-semibold">
                     {wishlistCount}
                   </span>
@@ -169,7 +169,7 @@ export default function Navbar() {
                 aria-label="Cart"
               >
                 <img src="/shopping-bag.png" alt="Cart" className="h-5 w-5" />
-                {cartCount > 0 && (
+                {mounted && cartCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-[color:var(--primary)] text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-semibold">
                     {cartCount}
                   </span>
