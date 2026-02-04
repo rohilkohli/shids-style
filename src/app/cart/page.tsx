@@ -27,27 +27,29 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <main className="min-h-screen bg-gray-50">
+      <main className="min-h-screen bg-[color:var(--background)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
-          <h1 className="text-3xl font-bold text-gray-900">Your Cart</h1>
-          <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
-          <Link
-            href="/shop"
-            className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            Continue Shopping
-          </Link>
+          <div className="rounded-2xl border border-gray-100 bg-white/90 p-8 text-center shadow-sm">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Your Cart</h1>
+            <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
+            <Link
+              href="/shop"
+              className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+            >
+              Continue Shopping
+            </Link>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-[color:var(--background)]">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">Your Cart</h1>
-          <Link href="/shop" className="text-sm text-gray-600 hover:text-gray-900">
+          <Link href="/shop" className="text-sm text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">
             Continue Shopping
           </Link>
         </div>
@@ -68,8 +70,9 @@ export default function CartPage() {
                       <p className="text-xs text-gray-500">{item!.product.category}</p>
                     </div>
                     <button
-                      className="text-xs text-red-600 hover:text-red-700"
+                      className="text-xs text-red-600 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 rounded"
                       onClick={() => removeFromCart(item!)}
+                      aria-label={`Remove ${item!.product.name}`}
                     >
                       Remove
                     </button>
@@ -77,15 +80,17 @@ export default function CartPage() {
                   <div className="mt-4 flex items-center justify-between">
                     <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-2 py-1">
                       <button
-                        className="w-7 h-7 rounded-full hover:bg-gray-100"
+                        className="w-7 h-7 rounded-full hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                         onClick={() => updateCartQuantity(item!, Math.max(1, item!.quantity - 1))}
+                        aria-label={`Decrease quantity of ${item!.product.name}`}
                       >
                         -
                       </button>
                       <span className="text-sm font-medium text-gray-900 w-6 text-center">{item!.quantity}</span>
                       <button
-                        className="w-7 h-7 rounded-full hover:bg-gray-100"
+                        className="w-7 h-7 rounded-full hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                         onClick={() => updateCartQuantity(item!, item!.quantity + 1)}
+                        aria-label={`Increase quantity of ${item!.product.name}`}
                       >
                         +
                       </button>
@@ -117,7 +122,7 @@ export default function CartPage() {
             </div>
             <Link
               href="/shipping"
-              className="mt-6 w-full inline-flex justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
+              className="mt-6 w-full inline-flex justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
             >
               Add Shipping Details
             </Link>

@@ -107,14 +107,16 @@ export default function ShippingPage() {
     return (
       <main className="min-h-screen bg-[color:var(--background)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
-          <h1 className="text-3xl font-bold text-gray-900">Shipping Details</h1>
-          <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
-          <Link
-            href="/shop"
-            className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            Shop Products
-          </Link>
+          <div className="rounded-2xl border border-gray-100 bg-white/90 p-8 text-center shadow-sm">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Shipping Details</h1>
+            <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
+            <Link
+              href="/shop"
+              className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+            >
+              Shop Products
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -158,7 +160,7 @@ export default function ShippingPage() {
                 <input
                   autoComplete="name"
                   placeholder="Rahul Sharma"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     value={resolvedForm.fullName}
                   onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
                 />
@@ -170,7 +172,7 @@ export default function ShippingPage() {
                   required
                   autoComplete="email"
                   placeholder="you@email.com"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     value={resolvedForm.email}
                   onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
@@ -183,7 +185,7 @@ export default function ShippingPage() {
                   inputMode="tel"
                   autoComplete="tel"
                   placeholder="+91 98765 43210"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     value={resolvedForm.phone}
                   onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
                 />
@@ -201,7 +203,7 @@ export default function ShippingPage() {
                 required
                 autoComplete="address-line1"
                 placeholder="House No, Street, Area"
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                 value={form.addressLine1}
                 onChange={(e) => setForm((prev) => ({ ...prev, addressLine1: e.target.value }))}
               />
@@ -212,7 +214,7 @@ export default function ShippingPage() {
               <input
                 autoComplete="address-line2"
                 placeholder="Apartment, suite, landmark"
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                 value={form.addressLine2}
                 onChange={(e) => setForm((prev) => ({ ...prev, addressLine2: e.target.value }))}
               />
@@ -225,7 +227,7 @@ export default function ShippingPage() {
                   required
                   autoComplete="address-level2"
                   placeholder="Mumbai"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                   value={form.city}
                   onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
                 />
@@ -236,7 +238,7 @@ export default function ShippingPage() {
                   required
                   autoComplete="address-level1"
                   placeholder="Maharashtra"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                   value={form.state}
                   onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
                 />
@@ -248,7 +250,7 @@ export default function ShippingPage() {
                   inputMode="numeric"
                   autoComplete="postal-code"
                   placeholder="400001"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                   value={form.postalCode}
                   onChange={(e) => setForm((prev) => ({ ...prev, postalCode: e.target.value }))}
                 />
@@ -258,7 +260,7 @@ export default function ShippingPage() {
                 <input
                   autoComplete="country-name"
                   placeholder="India"
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                   value={form.country}
                   onChange={(e) => setForm((prev) => ({ ...prev, country: e.target.value }))}
                 />
@@ -266,14 +268,14 @@ export default function ShippingPage() {
             </div>
 
             {message && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" aria-live="polite">
                 {message}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition"
+              className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
             >
               Proceed to Payment
             </button>

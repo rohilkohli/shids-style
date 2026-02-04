@@ -23,6 +23,9 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.2",
+    "fast-xml-parser": "^5.3.4",
+    "sharp": "^0.34.5",
+    "svg-path-bounding-box": "^1.0.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

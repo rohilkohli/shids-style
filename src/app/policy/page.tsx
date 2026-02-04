@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import CartDrawer from "../components/CartDrawer";
 
@@ -30,6 +31,26 @@ export default function PolicyPage() {
                 Exchange requests are handled based on stock availability. If the requested item is unavailable, a
                 refund will be issued to your original payment method.
               </p>
+            </div>
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <Link
+                href="/shipping-policy"
+                className="inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              >
+                Shipping Policy
+              </Link>
+              <Link
+                href="/returns-policy"
+                className="inline-flex rounded-full border border-gray-200 px-5 py-2.5 text-xs font-semibold text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+              >
+                Returns Policy
+              </Link>
+              <Link
+                href="/refund-policy"
+                className="inline-flex rounded-full border border-gray-200 px-5 py-2.5 text-xs font-semibold text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+              >
+                Refund Policy
+              </Link>
             </div>
           </div>
         </div>

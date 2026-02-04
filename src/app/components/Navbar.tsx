@@ -15,11 +15,16 @@ export default function Navbar() {
   const [searchClosing, setSearchClosing] = useState(false);
   const [query, setQuery] = useState("");
   const [spinClose, setSpinClose] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
   const wishlistCount = useMemo(() => wishlist.length, [wishlist]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -37,10 +42,10 @@ export default function Navbar() {
     <>
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-black">
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16">
+          <div className="flex items-center justify-between h-16 sm:h-16">
             <div className="flex items-center gap-2">
               <button
-                className={`inline-flex sm:hidden h-10 w-10 items-center justify-center rounded-lg transition ${
+                className={`inline-flex sm:hidden h-10 w-10 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 ${
                   menuOpen ? "bg-gray-100" : "hover:bg-gray-50"
                 }`}
                 onClick={() => setMenuOpen((prev) => !prev)}
@@ -64,16 +69,22 @@ export default function Navbar() {
                   />
                 </span>
               </button>
-              <Link href="/" className="text-lg sm:text-xl font-display font-bold text-gray-900">
-                SHIDS STYLE
+              <Link href="/" className="flex items-center h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">
+                <img
+                  src="/shids.svg"
+                  alt="Shids Style"
+                  width={250}
+                  height={31}
+                  className="h-10 sm:h-12 w-auto max-w-[220px] object-contain block"
+                />
               </Link>
             </div>
 
             <nav className="hidden sm:flex items-center gap-5 text-sm font-medium text-gray-600">
-              <Link href="/" className="hover:text-gray-900">Home</Link>
-              <Link href="/shop" className="hover:text-gray-900">Collection</Link>
-              <Link href="/track" className="hover:text-gray-900">Track Order</Link>
-              <Link href="/contact" className="hover:text-gray-900">Contact</Link>
+              <Link href="/" className="hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">Home</Link>
+              <Link href="/shop" className="hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">Collection</Link>
+              <Link href="/track" className="hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">Track Order</Link>
+              <Link href="/contact" className="hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">Contact</Link>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -87,6 +98,7 @@ export default function Navbar() {
                 }}
                 role="button"
                 aria-label="Search"
+                aria-expanded={searchOpen || searchClosing}
                 ref={searchWrapperRef}
               >
                 <span className="text-gray-600 flex-shrink-0">
@@ -95,7 +107,7 @@ export default function Navbar() {
                 <input
                   ref={searchInputRef}
                   type="text"
-                  className={`ml-2 w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity ${
+                  className={`ml-2 w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-black/10 ${
                     searchOpen || searchClosing ? "opacity-100" : "opacity-0 pointer-events-none"
                   }`}
                   placeholder="Search..."
@@ -110,7 +122,7 @@ export default function Navbar() {
                 />
                 <button
                   type="button"
-                  className={`ml-1 h-7 w-7 flex items-center justify-center rounded-full text-gray-600 hover:text-gray-900 ${
+                  className={`ml-1 h-7 w-7 flex items-center justify-center rounded-full text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 ${
                     searchOpen || searchClosing ? "opacity-100" : "opacity-0 pointer-events-none"
                   }`}
                   onClick={(event) => {
@@ -133,15 +145,15 @@ export default function Navbar() {
                 </button>
               </div>
               <Link
-                href={user ? "/account" : "/login"}
-                className="h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900"
+                href={mounted && user ? "/account" : "/login"}
+                className="h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded-full"
                 aria-label="Profile"
               >
                 <img src="/profile-icon.png" alt="Profile" className="h-5 w-5" />
               </Link>
               <Link
                 href="/wishlist"
-                className="relative h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900"
+                className="relative h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded-full"
                 aria-label="Wishlist"
               >
                 <img src="/wishlist-icon.png" alt="Wishlist" className="h-5 w-5" />
@@ -152,7 +164,7 @@ export default function Navbar() {
                 )}
               </Link>
               <button
-                className="relative h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900"
+                className="relative h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded-full"
                 onClick={() => setShowCart(true)}
                 aria-label="Cart"
               >

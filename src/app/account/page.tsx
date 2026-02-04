@@ -88,6 +88,7 @@ export default function AccountPage() {
                 "rounded-full px-4 py-2 text-xs font-semibold border transition",
                 section === "overview" ? "bg-black text-white border-black" : "border-gray-200 text-gray-700 hover:border-black"
               )}
+              aria-pressed={section === "overview"}
               onClick={() => setSection("overview")}
             >
               Overview
@@ -97,6 +98,7 @@ export default function AccountPage() {
                 "rounded-full px-4 py-2 text-xs font-semibold border transition",
                 section === "orders" ? "bg-black text-white border-black" : "border-gray-200 text-gray-700 hover:border-black"
               )}
+              aria-pressed={section === "orders"}
               onClick={() => setSection("orders")}
             >
               Orders
@@ -106,6 +108,7 @@ export default function AccountPage() {
                 "rounded-full px-4 py-2 text-xs font-semibold border transition",
                 section === "profile" ? "bg-black text-white border-black" : "border-gray-200 text-gray-700 hover:border-black"
               )}
+              aria-pressed={section === "profile"}
               onClick={() => setSection("profile")}
             >
               Manage Profile
@@ -201,7 +204,7 @@ export default function AccountPage() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-gray-100 p-5 sm:p-6 glass-card">
+        <section className="rounded-2xl border border-gray-100 p-5 sm:p-6 glass-card" aria-live="polite">
             {section === "overview" && (
               <div className="space-y-6">
                 <div>
@@ -231,7 +234,7 @@ export default function AccountPage() {
                   <label className="text-sm font-medium text-gray-700">
                     Email
                        <input
-                         className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                         className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                          value={resolvedEmail}
                          onChange={(e) => setEmail(e.target.value)}
                     />
@@ -240,7 +243,13 @@ export default function AccountPage() {
 
                 {userOrders.length === 0 ? (
                   <div className="rounded-xl border border-gray-100 p-6 text-sm text-gray-600 bg-white/70">
-                    No orders found for this email.
+                    <p>No orders found for this email.</p>
+                    <Link
+                      href="/shop"
+                      className="mt-4 inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold !text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                    >
+                      Shop Now
+                    </Link>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -264,7 +273,7 @@ export default function AccountPage() {
                             Track Order
                           </Link>
                           <button
-                            className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50"
+                            className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                             onClick={() => {
                               setCancelRequests((prev) => ({ ...prev, [order.id]: true }));
                             }}
@@ -290,7 +299,7 @@ export default function AccountPage() {
                       <label className="text-sm font-medium text-gray-700">
                         Full Name
                         <input
-                          className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                          className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                           value={resolvedName}
                           onChange={(e) => setName(e.target.value)}
                         />
@@ -299,7 +308,7 @@ export default function AccountPage() {
                     Email
                     <input
                       type="email"
-                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                          value={resolvedEmail}
                          onChange={(e) => setEmail(e.target.value)}
                     />
@@ -307,7 +316,7 @@ export default function AccountPage() {
                   <label className="text-sm font-medium text-gray-700">
                     Phone
                     <input
-                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                          value={resolvedPhone}
                          onChange={(e) => setPhone(e.target.value)}
                     />
@@ -343,7 +352,7 @@ export default function AccountPage() {
                     <label className="text-xs font-medium text-gray-700">
                       Label
                       <select
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                         value={addressForm.label}
                         onChange={(e) => setAddressForm((prev) => ({ ...prev, label: e.target.value }))}
                       >
@@ -355,14 +364,14 @@ export default function AccountPage() {
                     <label className="text-xs font-medium text-gray-700 sm:col-span-2">
                       Address / Note
                       <input
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                         value={addressForm.note}
                         onChange={(e) => setAddressForm((prev) => ({ ...prev, note: e.target.value }))}
                       />
                     </label>
                   </div>
                   <button
-                    className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50"
+                    className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     onClick={() => {
                       if (!addressForm.note.trim()) return;
                       setAddresses((prev) => [...prev, { ...addressForm }]);
@@ -374,13 +383,16 @@ export default function AccountPage() {
                 </div>
 
                 {message && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  <div
+                    className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+                    aria-live="polite"
+                  >
                     {message}
                   </div>
                 )}
 
                 <button
-                  className="rounded-full btn-primary px-6 py-3 text-sm font-medium transition"
+                  className="rounded-full btn-primary px-6 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                   onClick={async () => {
                     try {
                       await updateUser({ name: resolvedName, email: resolvedEmail, phone: resolvedPhone });

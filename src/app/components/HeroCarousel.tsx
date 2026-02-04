@@ -38,12 +38,14 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
       className="relative h-[420px] sm:h-[620px] lg:h-[700px] bg-gray-50 overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
+      role="region"
+      aria-label="Hero carousel"
     >
       <Link href={`/products/${product.slug}`} className="absolute inset-0">
         <img
           src={product.images[0]}
           alt={product.name}
-          className="absolute inset-0 w-full h-full object-cover transition duration-700"
+          className="absolute inset-0 h-full w-full object-cover object-center transition duration-700"
         />
       </Link>
       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
@@ -59,13 +61,13 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 href={`/products/${product.slug}`}
-                className="rounded-full bg-white/95 text-gray-900 px-6 sm:px-8 py-3.5 text-sm sm:text-base font-semibold"
+                className="rounded-full bg-white/95 text-gray-900 px-6 sm:px-8 py-3.5 text-sm sm:text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 View Product · {formatCurrency(product.price)}
               </Link>
               <Link
                 href="/shop"
-                className="rounded-full border border-white/70 px-6 sm:px-8 py-3.5 text-sm sm:text-base font-semibold text-white hover:bg-white/10"
+                className="rounded-full border border-white/70 px-6 sm:px-8 py-3.5 text-sm sm:text-base font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 Shop Collection
               </Link>
@@ -75,7 +77,8 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
       </div>
 
       <button
-        className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow"
+        type="button"
+        className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         onClick={(event) => {
           event.preventDefault();
           setActiveIndex((prev) => (prev - 1 + slides.length) % slides.length);
@@ -85,7 +88,8 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
         ‹
       </button>
       <button
-        className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow"
+        type="button"
+        className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         onClick={(event) => {
           event.preventDefault();
           setActiveIndex((prev) => (prev + 1) % slides.length);
@@ -98,6 +102,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
         {slides.map((slide, index) => (
           <button
+            type="button"
             key={slide.id}
             onClick={(event) => {
               event.preventDefault();
@@ -107,6 +112,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
               index === safeIndex ? "bg-white" : "bg-white/50"
             }`}
             aria-label={`Show ${slide.product.name}`}
+            aria-current={index === safeIndex}
           />
         ))}
       </div>

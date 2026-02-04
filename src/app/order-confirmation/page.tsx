@@ -58,7 +58,7 @@ export default function OrderConfirmationPage() {
           <p className="mt-2 text-sm text-gray-500">We could not find your order details.</p>
           <Link
             href="/shop"
-            className="inline-flex mt-6 rounded-full btn-primary px-6 py-3 text-sm font-medium"
+            className="inline-flex mt-6 rounded-full btn-primary px-6 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
           >
             Continue Shopping
           </Link>
@@ -114,7 +114,7 @@ export default function OrderConfirmationPage() {
                   </span>
                   <button
                     type="button"
-                    className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:border-black"
+                    className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     onClick={async () => {
                       if (!navigator.clipboard) return;
                       await navigator.clipboard.writeText(order.id);
@@ -188,13 +188,13 @@ export default function OrderConfirmationPage() {
               <div className="grid gap-2">
                 <Link
                   href={`/track?orderId=${encodeURIComponent(order.id)}&email=${encodeURIComponent(order.email)}`}
-                  className="inline-flex w-full justify-center rounded-full btn-primary px-6 py-3 text-sm font-medium"
+                  className="inline-flex w-full justify-center rounded-full btn-primary px-6 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                 >
                   Track This Order
                 </Link>
                 <Link
                   href="/account"
-                  className="inline-flex w-full justify-center rounded-full border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 hover:border-black"
+                  className="inline-flex w-full justify-center rounded-full border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                 >
                   View in Account
                 </Link>

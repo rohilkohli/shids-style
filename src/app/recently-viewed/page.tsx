@@ -25,12 +25,12 @@ export default function RecentlyViewedPage() {
               <p className="text-sm text-gray-500">Your latest product views.</p>
             </div>
             <div className="flex items-center gap-3">
-              <Link href="/shop" className="text-xs sm:text-sm text-gray-600 hover:text-gray-900">
+              <Link href="/shop" className="text-xs sm:text-sm text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">
                 Continue Shopping
               </Link>
               {items.length > 0 && (
                 <button
-                  className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-white"
+                  className="rounded-full border border-gray-200 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                   onClick={() => clearRecentlyViewed()}
                 >
                   Clear
@@ -41,7 +41,13 @@ export default function RecentlyViewedPage() {
 
           {items.length === 0 ? (
             <div className="mt-8 rounded-2xl border border-gray-100 bg-white p-6 text-sm text-gray-600">
-              Nothing viewed yet. Explore the collection to see items here.
+              <p>Nothing viewed yet. Explore the collection to see items here.</p>
+              <Link
+                href="/shop"
+                className="mt-4 inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              >
+                Browse Collection
+              </Link>
             </div>
           ) : (
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -52,7 +58,7 @@ export default function RecentlyViewedPage() {
                   <Link
                     key={product.id}
                     href={`/products/${product.slug}`}
-                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm hover:border-gray-200"
+                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm hover:border-gray-200 hover:shadow-md transition"
                   >
                     <div className="aspect-[4/3] overflow-hidden rounded-xl bg-gray-50">
                       <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />

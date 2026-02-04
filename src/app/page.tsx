@@ -37,6 +37,8 @@ function ProductCard({
             wished ? "bg-[color:var(--primary)] text-white border-transparent" : "hover:bg-[color:var(--primary-soft)]"
           )}
           onClick={() => onWishlist(product.id)}
+          aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+          aria-pressed={wished}
         >
           {wished ? "♥" : "♡"}
         </button>
@@ -233,6 +235,7 @@ export default function Home() {
               <p className="text-sm text-gray-500">Unmatched design and superior comfort.</p>
             </div>
             <button
+              type="button"
               className={`flex items-center h-10 rounded-full px-3 transition-all duration-300 border border-transparent ${
                 searchExpanded ? "w-64 bg-gray-200/80 border-gray-200 shadow" : "w-10 bg-transparent"
               }`}
@@ -241,6 +244,7 @@ export default function Home() {
                 setTimeout(() => searchInputRef.current?.focus(), 0);
               }}
               aria-label="Search"
+              aria-expanded={searchExpanded}
             >
               <span className="text-gray-600">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,7 +254,7 @@ export default function Home() {
               <input
                 ref={searchInputRef}
                 type="text"
-                className={`ml-2 w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity ${
+                className={`ml-2 w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-black/10 ${
                   searchExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
                 }`}
                 placeholder="I'm looking for..."
@@ -292,6 +296,11 @@ export default function Home() {
                 : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6"
             )}
           >
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full rounded-2xl border border-gray-200 bg-white/90 p-8 text-center text-sm text-gray-600">
+                No products found. Try a different search or category.
+              </div>
+            )}
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
@@ -382,13 +391,15 @@ export default function Home() {
               <input
                 type="email"
                 placeholder="Email address"
-                className="w-full px-6 py-4 pr-14 rounded-full border border-gray-200 focus:outline-none focus:border-gray-400 transition bg-gray-50"
+                className="w-full px-6 py-4 pr-14 rounded-full border border-gray-200 focus:outline-none focus:border-gray-400 transition bg-gray-50 focus-visible:ring-2 focus-visible:ring-black/10"
                 value={newsletterEmail}
                 onChange={(event) => setNewsletterEmail(event.target.value)}
+                required
               />
               <button
                 type="submit"
                 className="absolute right-2 top-1/2 transform -translate-y-1/2 w-10 h-10 rounded-full btn-primary flex items-center justify-center transition"
+                aria-label="Subscribe"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -396,7 +407,7 @@ export default function Home() {
               </button>
             </form>
             {newsletterMessage && (
-              <p className="mt-3 text-xs text-gray-600">{newsletterMessage}</p>
+              <p className="mt-3 text-xs text-gray-600" aria-live="polite">{newsletterMessage}</p>
             )}
           </div>
         </div>

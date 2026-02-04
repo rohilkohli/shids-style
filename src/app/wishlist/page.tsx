@@ -21,18 +21,30 @@ export default function WishlistPage() {
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Wishlist</h1>
               <p className="text-sm text-gray-500">Saved items: {totalItems}</p>
             </div>
+            <Link
+              href="/shop"
+              className="text-xs sm:text-sm text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded"
+            >
+              Continue Shopping
+            </Link>
           </div>
 
           {wishlistItems.length === 0 ? (
             <div className="mt-8 rounded-2xl border border-gray-100 bg-white p-6 text-sm text-gray-600">
-              Your wishlist is empty. Save items to shop later.
+              <p>Your wishlist is empty. Save items to shop later.</p>
+              <Link
+                href="/shop"
+                className="mt-4 inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              >
+                Browse Collection
+              </Link>
             </div>
           ) : (
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {wishlistItems.map((product) => {
                 const { sale, compareAt } = getProductPrice(product);
                 return (
-                  <div key={product.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                  <div key={product.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-gray-200 hover:shadow-md">
                     <Link href={`/products/${product.slug}`}>
                       <div className="aspect-[4/3] overflow-hidden rounded-xl bg-gray-50">
                         <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
@@ -48,7 +60,7 @@ export default function WishlistPage() {
                         {compareAt !== sale && <span className="text-xs text-gray-400 line-through">{formatCurrency(compareAt)}</span>}
                       </div>
                       <button
-                        className="w-full rounded-full btn-primary px-4 py-2 text-xs font-medium transition"
+                        className="w-full rounded-full btn-primary px-4 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                         onClick={() => {
                           addToCart({ productId: product.id, quantity: 1 });
                           setShowCart(true);

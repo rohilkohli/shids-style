@@ -15,6 +15,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
 
   const WHATSAPP_NUMBER = "919084978839";
 
@@ -56,7 +57,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const lowStock = product.stock > 0 && product.stock <= 5;
 
   return (
-    <main className="min-h-screen bg-[color:var(--background)] text-gray-800">
+    <>
+      <main className="min-h-screen bg-[color:var(--background)] text-gray-800">
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -75,7 +77,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         <section className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
             <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg group">
-              <img src={activeImage} alt={product.name} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+              {activeImage ? (
+                <img
+                  src={activeImage}
+                  alt={product.name}
+                  className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                />
+              ) : (
+                <div className="flex h-full min-h-[360px] items-center justify-center bg-gray-100 text-sm text-gray-500">
+                  No image available
+                </div>
+              )}
               {product.discountPercent ? (
                 <div className="absolute right-4 top-4 rounded-full bg-black px-3 py-1 text-xs font-semibold text-white shadow">
                   -{product.discountPercent}%
@@ -85,7 +97,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <>
                   <button
                     type="button"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                     onClick={() =>
                       setSelectedImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length)
                     }
@@ -95,7 +107,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </button>
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                     onClick={() => setSelectedImageIndex((prev) => (prev + 1) % productImages.length)}
                     aria-label="Next image"
                   >
@@ -107,13 +119,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
               {productImages.map((img, index) => (
                 <button
-                  key={img}
+                  key={`${img}-${index}`}
                   type="button"
                   className={classNames(
-                    "aspect-square overflow-hidden rounded-2xl border bg-white",
+                    "aspect-square overflow-hidden rounded-2xl border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
                     safeImageIndex === index ? "border-black" : "border-gray-200 hover:border-gray-400"
                   )}
                   onClick={() => setSelectedImageIndex(index)}
+                  aria-pressed={safeImageIndex === index}
                 >
                   <img src={img} alt={`${product.name} ${index + 1}`} className="h-full w-full object-cover" />
                 </button>
@@ -153,12 +166,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       <button
                         key={color}
                         className={classNames(
-                          "rounded-full border px-4 py-2 text-xs font-semibold",
+                          "rounded-full border px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
                           selectedColorValue === color
                             ? "border-black bg-black text-white"
                             : "border-gray-300 bg-white text-gray-700 hover:border-black"
                         )}
                         onClick={() => setSelectedColor(color)}
+                        aria-pressed={selectedColorValue === color}
                       >
                         {color}
                       </button>
@@ -171,7 +185,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <div>
                   <div className="flex items-center justify-between">
                     <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Size</p>
-                    <button type="button" className="text-xs text-gray-500 hover:text-black">
+                    <button
+                      type="button"
+                      className="text-xs text-gray-500 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded"
+                      onClick={() => setShowSizeGuide(true)}
+                    >
                       Size guide
                     </button>
                   </div>
@@ -180,12 +198,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                       <button
                         key={size}
                         className={classNames(
-                          "min-w-[56px] rounded-full border px-4 py-2 text-xs font-semibold",
+                          "min-w-[56px] rounded-full border px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
                           selectedSizeValue === size
                             ? "border-black bg-black text-white"
                             : "border-gray-300 bg-white text-gray-700 hover:border-black"
                         )}
                         onClick={() => setSelectedSize(size)}
+                        aria-pressed={selectedSizeValue === size}
                       >
                         {size}
                       </button>
@@ -198,24 +217,26 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   <div className="flex items-center overflow-hidden rounded-full border border-gray-300">
                     <button
                       type="button"
-                      className="h-10 w-10 text-gray-600 hover:bg-gray-100"
+                      className="h-10 w-10 text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                       onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                      aria-label="Decrease quantity"
                     >
                       −
                     </button>
                     <span className="w-10 text-center text-sm font-semibold text-gray-800">{quantity}</span>
                     <button
                       type="button"
-                      className="h-10 w-10 text-gray-600 hover:bg-gray-100"
+                      className="h-10 w-10 text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                       onClick={() =>
                         setQuantity((prev) => (product.stock ? Math.min(product.stock, prev + 1) : prev + 1))
                       }
+                      aria-label="Increase quantity"
                     >
                       +
                     </button>
                   </div>
                   <button
-                    className="flex-1 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex-1 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                     disabled={product.stock === 0}
                     onClick={() => {
                       if (canSelectColor && !selectedColorValue) {
@@ -245,16 +266,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   <button
                     type="button"
                     className={classNames(
-                      "rounded-full border px-4 py-2 text-xs font-semibold",
+                      "rounded-full border px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
                       wished ? "border-black bg-black text-white" : "border-gray-300 text-gray-700 hover:border-black"
                     )}
                     onClick={() => toggleWishlist(product.id)}
+                    aria-pressed={wished}
                   >
                     {wished ? "Saved" : "Save"}
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-black"
+                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     onClick={() => {
                       const details = [
                         `Product: ${product.name}`,
@@ -272,7 +294,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-black"
+                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     onClick={async () => {
                       const shareUrl = window.location.href;
                       const shareText = `Check out ${product.name} on SHIDS STYLE.`;
@@ -299,7 +321,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 </div>
 
                 {actionMessage && (
-                  <p className="text-xs text-gray-600">{actionMessage}</p>
+                  <p className="text-xs text-gray-600" aria-live="polite">
+                    {actionMessage}
+                  </p>
                 )}
 
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
@@ -371,6 +395,63 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           </section>
         )}
       </div>
-    </main>
+      </main>
+
+      {showSizeGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowSizeGuide(false)}
+          />
+          <div className="relative w-full max-w-5xl rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-gray-500 font-semibold">Size Guide</p>
+                <h3 className="text-2xl font-bold text-gray-900">Womenswear (Body Measurements)</h3>
+              </div>
+              <button
+                type="button"
+                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => setShowSizeGuide(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="border border-gray-200 px-4 py-3 text-left font-semibold">Sizes (in inches)</th>
+                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">S</th>
+                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">M</th>
+                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">L</th>
+                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">XL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: "Chest", values: [34, 36, 38, 40] },
+                    { label: "Stomach", values: [28, 30, 32, 34] },
+                    { label: "Hips", values: [36, 38, 40, 42] },
+                    { label: "Shoulder", values: [15, 15.5, 16, 16.5] },
+                    { label: "Armhole", values: [15.5, 16.5, 16.5, 17.5] },
+                  ].map((row) => (
+                    <tr key={row.label}>
+                      <td className="border border-gray-200 px-4 py-3 font-medium text-gray-700">{row.label}</td>
+                      {row.values.map((value, index) => (
+                        <td key={`${row.label}-${index}`} className="border border-gray-200 px-4 py-3 text-center text-gray-800">
+                          {value}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

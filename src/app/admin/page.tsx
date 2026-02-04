@@ -9,7 +9,7 @@ import type { OrderStatus, Product, Order, Customer, DiscountCode } from "@/app/
 
 const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "fulfilled", "shipped", "cancelled"];
 
-type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "marketing";
+type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter";
 
 type ProductFormState = {
   id?: string;
@@ -81,6 +81,10 @@ export default function AdminPage() {
   const [showCustomerDetail, setShowCustomerDetail] = useState(false);
   const [showDiscountPanel, setShowDiscountPanel] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [productStep, setProductStep] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [showRawImages, setShowRawImages] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -118,6 +122,10 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (!selectedProduct && products.length) {
       setSelectedProduct(products[0]);
     }
@@ -151,7 +159,7 @@ export default function AdminPage() {
   }, [ready, user]);
 
   useEffect(() => {
-    if (currentView !== "marketing") return;
+    if (currentView !== "hero" && currentView !== "newsletter") return;
     const loadMarketing = async () => {
       try {
         const [heroRes, newsletterRes] = await Promise.all([
@@ -283,7 +291,7 @@ export default function AdminPage() {
     return `${sign}${Math.abs(value).toFixed(1)}%`;
   };
 
-  if (!ready) {
+  if (!mounted || !ready) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-gray-600">
         Loading admin console...
@@ -357,19 +365,28 @@ export default function AdminPage() {
 
   const parseImages = (value: string) => {
     return value
-      .split(/[;\n]+/)
-      .flatMap((chunk) => {
-        const trimmed = chunk.trim();
+      .split(/\n+/)
+      .flatMap((line) => {
+        const trimmed = line.trim();
         if (!trimmed) return [] as string[];
-        if (trimmed.includes("data:image")) {
+        if (trimmed.startsWith("data:image")) {
           return [trimmed];
         }
         return trimmed
-          .split(/,+/)
+          .split(/[;,]+/)
           .map((item) => item.trim())
           .filter(Boolean);
       });
   };
+
+  const productSteps = [
+    { title: "Basics", description: "Name, category, description" },
+    { title: "Pricing", description: "Price, discount, stock" },
+    { title: "Options", description: "Colors, sizes, tags, highlights" },
+    { title: "Media", description: "Images and uploads" },
+    { title: "Review", description: "Final check before save" },
+  ];
+  const lastProductStep = productSteps.length - 1;
 
   const resetForm = () => {
     setProductForm({
@@ -390,6 +407,73 @@ export default function AdminPage() {
     });
     setFormMode("create");
     setSelectedProduct(null);
+    setProductStep(0);
+  };
+
+  const goToNextProductStep = () => {
+    if (productStep === 0) {
+      if (!productForm.name.trim()) {
+        alert("Product name is required");
+        return;
+      }
+      if (!productForm.category.trim()) {
+        alert("Category is required");
+        return;
+      }
+    }
+    if (productStep === 1) {
+      const price = Number(productForm.price) || 0;
+      if (price <= 0) {
+        alert("Price must be greater than 0");
+        return;
+      }
+    }
+    if (productStep === 3) {
+      const images = parseImages(productForm.images);
+      if (images.length === 0) {
+        alert("Please add at least one image URL");
+        return;
+      }
+    }
+    setProductStep((prev) => Math.min(prev + 1, lastProductStep));
+  };
+
+  const goToPrevProductStep = () => {
+    setProductStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const goToProductStep = (nextStep: number) => {
+    if (nextStep <= productStep) {
+      setProductStep(nextStep);
+      return;
+    }
+
+    if (productStep === 0) {
+      if (!productForm.name.trim()) {
+        alert("Product name is required");
+        return;
+      }
+      if (!productForm.category.trim()) {
+        alert("Category is required");
+        return;
+      }
+    }
+    if (productStep === 1) {
+      const price = Number(productForm.price) || 0;
+      if (price <= 0) {
+        alert("Price must be greater than 0");
+        return;
+      }
+    }
+    if (productStep === 3) {
+      const images = parseImages(productForm.images);
+      if (images.length === 0) {
+        alert("Please add at least one image URL");
+        return;
+      }
+    }
+
+    setProductStep(Math.min(nextStep, lastProductStep));
   };
 
   const populateForm = (product: Product) => {
@@ -495,24 +579,86 @@ export default function AdminPage() {
     setTimeout(() => setFlash(null), 1600);
   };
 
+  const resizeImageToDataUrl = (file: File, maxSize = 1400) =>
+    new Promise<string>((resolve, reject) => {
+      if (!file.type.startsWith("image/")) {
+        reject(new Error("Unsupported file type"));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const width = img.width || maxSize;
+          const height = img.height || maxSize;
+          let targetWidth = width;
+          let targetHeight = height;
+
+          if (width >= height && width > maxSize) {
+            targetWidth = maxSize;
+            targetHeight = Math.round((height / width) * maxSize);
+          } else if (height > width && height > maxSize) {
+            targetHeight = maxSize;
+            targetWidth = Math.round((width / height) * maxSize);
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Failed to resize image"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+          const dataUrl = canvas.toDataURL(mimeType, mimeType === "image/jpeg" ? 0.9 : undefined);
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = String(reader.result);
+      };
+      reader.onerror = () => reject(new Error("Failed to read image"));
+      reader.readAsDataURL(file);
+    });
+
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploadingImages(true);
     try {
-      const readers = Array.from(files).map(
-        (file) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error("Failed to read image"));
-            reader.readAsDataURL(file);
-          })
+      const results = await Promise.allSettled(
+        Array.from(files).map(async (file) => {
+          try {
+            return await resizeImageToDataUrl(file);
+          } catch {
+            return await new Promise<string>((resolve, reject) => {
+              const fallbackReader = new FileReader();
+              fallbackReader.onload = () => resolve(String(fallbackReader.result));
+              fallbackReader.onerror = () => reject(new Error("Failed to read image"));
+              fallbackReader.readAsDataURL(file);
+            });
+          }
+        })
       );
-      const dataUrls = await Promise.all(readers);
+
+      const dataUrls = results
+        .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+        .map((result) => result.value)
+        .filter(Boolean);
+
+      const failures = results.length - dataUrls.length;
+      if (!dataUrls.length) {
+        throw new Error("No images could be uploaded.");
+      }
       setProductForm((prev) => {
         const existing = prev.images ? `${prev.images.trim()}\n` : "";
         return { ...prev, images: `${existing}${dataUrls.join("\n")}` };
       });
+      if (failures > 0) {
+        setFlash(`${failures} image(s) could not be processed and were skipped.`);
+        setTimeout(() => setFlash(null), 1800);
+      }
     } catch (error) {
       setFlash((error as Error).message);
     } finally {
@@ -572,6 +718,7 @@ export default function AdminPage() {
   const openProductCreate = () => {
     resetForm();
     setFormMode("create");
+    setProductStep(0);
     setShowProductPanel(true);
   };
 
@@ -579,6 +726,7 @@ export default function AdminPage() {
     setSelectedProduct(product);
     populateForm(product);
     setFormMode("edit");
+    setProductStep(0);
     setShowProductPanel(true);
   };
 
@@ -599,8 +747,7 @@ export default function AdminPage() {
       >
         <div className="p-6">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl font-bold">SHIDS</span>
-            <span className="text-2xl font-bold text-indigo-400">ADMIN</span>
+            <span className="text-2xl font-bold text-indigo-400">SHIDS STYLE ADMIN</span>
           </Link>
         </div>
 
@@ -676,9 +823,9 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("marketing")}
+            onClick={() => setCurrentView("hero")}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "marketing"
+              currentView === "hero"
                 ? "bg-indigo-600 text-white"
                 : "text-slate-400 hover:bg-slate-800 hover:text-white"
             }`}
@@ -686,7 +833,22 @@ export default function AdminPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            Marketing
+            Hero Carousel
+          </button>
+
+          <button
+            onClick={() => setCurrentView("newsletter")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              currentView === "newsletter"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v12H4z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m22 6-10 7L2 6" />
+            </svg>
+            Newsletter Emails
           </button>
 
           <Link
@@ -720,7 +882,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open sidebar"
               >
@@ -737,7 +899,7 @@ export default function AdminPage() {
                 signOut();
                 router.replace("/login");
               }}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
             >
               Logout
             </button>
@@ -745,7 +907,7 @@ export default function AdminPage() {
         </div>
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
           {flash && (
-            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" aria-live="polite">
               {flash}
             </div>
           )}
@@ -760,7 +922,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <button
                   onClick={() => setCurrentView("ledger")}
-                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -780,7 +942,7 @@ export default function AdminPage() {
 
                 <button
                   onClick={() => setCurrentView("orders")}
-                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -800,7 +962,7 @@ export default function AdminPage() {
 
                 <button
                   onClick={() => setCurrentView("customers")}
-                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-left hover:shadow-md transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -935,8 +1097,8 @@ export default function AdminPage() {
               </div>
 
               {/* Products Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                <table className="w-full min-w-[720px]">
                   <thead className="bg-slate-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
@@ -1031,8 +1193,8 @@ export default function AdminPage() {
               </div>
 
               {/* Orders Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                <table className="w-full min-w-[760px]">
                   <thead className="bg-slate-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
@@ -1044,6 +1206,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
+                    {orders.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-6 text-center text-sm text-gray-500">
+                          No orders yet.
+                        </td>
+                      </tr>
+                    )}
                     {orders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -1056,7 +1225,6 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {formatDate(order.createdAt)}
-                                                  {formatDate(order.createdAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
@@ -1126,8 +1294,8 @@ export default function AdminPage() {
               </div>
 
               {/* Customers Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                <table className="w-full min-w-[720px]">
                   <thead className="bg-slate-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
@@ -1138,6 +1306,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
+                    {customers.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-6 text-center text-sm text-gray-500">
+                          No customers yet.
+                        </td>
+                      </tr>
+                    )}
                     {customers.map((customer) => (
                       <tr key={customer.email} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -1170,6 +1345,9 @@ export default function AdminPage() {
                               if (confirm(`Delete customer ${customer.email} and all their orders? This cannot be undone.`)) {
                                 try {
                                   await deleteCustomer(customer.email);
+                                  setProfiles((prev) =>
+                                    prev.filter((profile) => profile.email.toLowerCase() !== customer.email.toLowerCase())
+                                  );
                                   setFlash(`Customer ${customer.email} deleted`);
                                   setTimeout(() => setFlash(null), 2000);
                                 } catch (error) {
@@ -1197,8 +1375,8 @@ export default function AdminPage() {
               </div>
 
               {/* Ledger Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                <table className="w-full min-w-[720px]">
                   <thead className="bg-slate-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -1209,6 +1387,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
+                    {orders.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-6 text-center text-sm text-gray-500">
+                          No ledger entries yet.
+                        </td>
+                      </tr>
+                    )}
                     {orders
                       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                       .map((order) => (
@@ -1278,8 +1463,8 @@ export default function AdminPage() {
               </div>
 
               {/* Discount Codes Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                <table className="w-full min-w-[760px]">
                   <thead className="bg-slate-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
@@ -1292,6 +1477,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
+                    {discountCodes.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
+                          No discount codes created yet.
+                        </td>
+                      </tr>
+                    )}
                     {discountCodes.map((code) => (
                       <tr key={code.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -1326,7 +1518,6 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {code.expiryDate ? formatDate(code.expiryDate) : "No expiry"}
-                                                  {code.expiryDate ? formatDate(code.expiryDate) : "No expiry"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
@@ -1359,11 +1550,11 @@ export default function AdminPage() {
             </>
           )}
 
-          {currentView === "marketing" && (
+          {currentView === "hero" && (
             <>
               <div className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">Marketing</h1>
-                <p className="text-sm text-gray-500 mt-1">Manage hero carousel and newsletter signups</p>
+                <h1 className="text-3xl font-bold text-gray-900">Hero Carousel</h1>
+                <p className="text-sm text-gray-500 mt-1">Manage hero carousel products</p>
               </div>
 
               {marketingMessage && (
@@ -1372,12 +1563,11 @@ export default function AdminPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-900">Hero Carousel</h2>
-                    <span className="text-xs text-gray-500">{heroItems.length} items</span>
-                  </div>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-900">Hero Carousel</h2>
+                  <span className="text-xs text-gray-500">{heroItems.length} items</span>
+                </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <select
@@ -1407,49 +1597,93 @@ export default function AdminPage() {
                     </button>
                   </div>
 
-                  <div className="mt-5 space-y-3">
-                    {heroItems.length === 0 && (
-                      <p className="text-sm text-gray-500">No hero products selected.</p>
-                    )}
-                    {heroItems.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{item.product?.name}</p>
-                          <p className="text-xs text-gray-500">Position {item.position}</p>
-                        </div>
-                        <button
-                          className="text-xs font-semibold text-red-600 hover:text-red-900"
-                          onClick={() => removeHeroProduct(item.id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                  <div className="mt-5 overflow-x-auto rounded-lg border border-gray-100">
+                    <table className="w-full min-w-[520px] text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            Product
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            Position
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {heroItems.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-4 text-center text-sm text-gray-500">
+                              No hero products selected.
+                            </td>
+                          </tr>
+                        )}
+                        {heroItems.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-gray-900">{item.product?.name}</p>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">{item.position}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                className="text-xs font-semibold text-red-600 hover:text-red-900"
+                                onClick={() => removeHeroProduct(item.id)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
+              </div>
+            </>
+          )}
+
+          {currentView === "newsletter" && (
+            <>
+              <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900">Newsletter Emails</h1>
+                <p className="text-sm text-gray-500 mt-1">View all newsletter signups</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-900">Newsletter Emails</h2>
+                  <span className="text-xs text-gray-500">{newsletterEmails.length} total</span>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-900">Newsletter Emails</h2>
-                    <span className="text-xs text-gray-500">{newsletterEmails.length} total</span>
-                  </div>
-
-                  <div className="mt-4 max-h-[420px] overflow-y-auto border border-gray-100 rounded-lg">
-                    {newsletterEmails.length === 0 ? (
-                      <p className="p-4 text-sm text-gray-500">No emails collected yet.</p>
-                    ) : (
-                      <ul className="divide-y divide-gray-100 text-sm">
-                        {newsletterEmails.map((entry) => (
-                          <li key={entry.id} className="flex items-center justify-between px-4 py-3">
-                            <div>
-                              <p className="font-medium text-gray-900">{entry.email}</p>
-                              <p className="text-xs text-gray-500">{formatDateTime(entry.created_at)}</p>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                <div className="mt-4 max-h-[520px] overflow-x-auto overflow-y-auto border border-gray-100 rounded-lg">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Email
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Date
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {newsletterEmails.length === 0 && (
+                        <tr>
+                          <td colSpan={2} className="px-4 py-4 text-center text-sm text-gray-500">
+                            No emails collected yet.
+                          </td>
+                        </tr>
+                      )}
+                      {newsletterEmails.map((entry) => (
+                        <tr key={entry.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{entry.email}</td>
+                          <td className="px-4 py-3 text-gray-500">{formatDateTime(entry.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </>
@@ -1459,12 +1693,12 @@ export default function AdminPage() {
 
       {/* Product creation/edit panel overlay */}
       {showProductPanel && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm z-0"
             onClick={() => setShowProductPanel(false)}
           />
-          <div className="relative z-10 ml-auto h-full w-full max-w-2xl bg-white shadow-2xl overflow-y-auto">
+          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] bg-white shadow-2xl overflow-y-auto rounded-2xl">
             <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">{formMode === "create" ? "New product" : "Edit product"}</p>
@@ -1478,162 +1712,331 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="px-6 py-6 space-y-4 bg-white min-h-[calc(100vh-80px)]">
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Name
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.name}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Category
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.category}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                  Description
-                  <textarea
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    rows={3}
-                    value={productForm.description}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700">
-                  Price
-                  <input
-                    type="number"
-                    min={0}
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.price}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, price: Number(event.target.value) }))}
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Compare at (original)
-                  <input
-                    type="number"
-                    min={0}
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.originalPrice ?? ""}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, originalPrice: Number(event.target.value) }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700">
-                  Discount %
-                  <input
-                    type="number"
-                    min={0}
-                    max={90}
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.discountPercent ?? 0}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, discountPercent: Number(event.target.value) }))}
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Stock
-                  <input
-                    type="number"
-                    min={0}
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.stock}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, stock: Number(event.target.value) }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700">
-                  Colors (comma/semicolon)
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.colors}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, colors: event.target.value }))}
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Sizes (comma/semicolon)
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.sizes}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, sizes: event.target.value }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700">
-                  Tags (comma/semicolon)
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.tags}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, tags: event.target.value }))}
-                  />
-                </label>
-                <label className="text-sm font-medium text-gray-700">
-                  Highlights (comma/semicolon)
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.highlights}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, highlights: event.target.value }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                  Images (comma, semicolon, or newline URLs)
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.images}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, images: event.target.value }))}
-                  />
-                </label>
-
-                <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                  Upload Images
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="mt-1 w-full rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    onChange={(event) => handleImageUpload(event.target.files)}
-                    disabled={uploadingImages}
-                  />
-                  <span className="mt-1 block text-xs text-gray-500">
-                    Uploads are stored as data URLs. For best performance, use optimized image URLs when possible.
-                  </span>
-                </label>
-
-                <label className="text-sm font-medium text-gray-700">
-                  Badge (optional)
-                  <input
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    value={productForm.badge ?? ""}
-                    onChange={(event) => setProductForm((prev) => ({ ...prev, badge: event.target.value }))}
-                  />
-                </label>
+            <div className="px-6 py-6 space-y-6 bg-white min-h-[calc(100vh-80px)]">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {productSteps.map((step, index) => (
+                  <button
+                    key={step.title}
+                    type="button"
+                    onClick={() => goToProductStep(index)}
+                    className={`rounded-xl border px-4 py-3 text-left transition ${
+                      index === productStep
+                        ? "border-indigo-200 bg-indigo-50"
+                        : index < productStep
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    <p className="text-[11px] uppercase tracking-[0.3em] text-gray-500">Step {index + 1}</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">{step.title}</p>
+                    <p className="text-xs text-gray-500">{step.description}</p>
+                  </button>
+                ))}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={handleCreateOrUpdate}
-                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-                >
-                  {formMode === "create" ? "Create Product" : "Save Changes"}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                  Reset
-                </button>
-                <div className="text-xs text-gray-500">Fields accept comma or semicolon separated lists for multi-value inputs.</div>
+              {productStep === 0 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Name
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.name}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Category
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.category}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
+                    />
+                  </label>
+
+                  <label className="text-sm font-medium text-gray-700 md:col-span-2">
+                    Description
+                    <textarea
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      rows={4}
+                      value={productForm.description}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {productStep === 1 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Price
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.price}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, price: Number(event.target.value) }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Compare at (original)
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.originalPrice ?? ""}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, originalPrice: Number(event.target.value) }))}
+                    />
+                  </label>
+
+                  <label className="text-sm font-medium text-gray-700">
+                    Discount %
+                    <input
+                      type="number"
+                      min={0}
+                      max={90}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.discountPercent ?? 0}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, discountPercent: Number(event.target.value) }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Stock
+                    <input
+                      type="number"
+                      min={0}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.stock}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, stock: Number(event.target.value) }))}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {productStep === 2 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Colors (comma/semicolon)
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.colors}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, colors: event.target.value }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Sizes (comma/semicolon)
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.sizes}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, sizes: event.target.value }))}
+                    />
+                  </label>
+
+                  <label className="text-sm font-medium text-gray-700">
+                    Tags (comma/semicolon)
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.tags}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, tags: event.target.value }))}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Highlights (comma/semicolon)
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.highlights}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, highlights: event.target.value }))}
+                    />
+                  </label>
+
+                  <label className="text-sm font-medium text-gray-700 md:col-span-2">
+                    Badge (optional)
+                    <input
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={productForm.badge ?? ""}
+                      onChange={(event) => setProductForm((prev) => ({ ...prev, badge: event.target.value }))}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {productStep === 3 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Images</p>
+                        <p className="text-xs text-gray-500">
+                          {parseImages(productForm.images).length} image(s) attached
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-gray-600 hover:text-black"
+                        onClick={() => setShowRawImages((prev) => !prev)}
+                      >
+                        {showRawImages ? "Hide raw URLs" : "Show raw URLs"}
+                      </button>
+                    </div>
+
+                    {showRawImages && (
+                      <label className="mt-3 block text-xs font-medium text-gray-600">
+                        Raw image URLs (comma, semicolon, or newline)
+                        <textarea
+                          className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+                          rows={3}
+                          value={productForm.images}
+                          onChange={(event) => setProductForm((prev) => ({ ...prev, images: event.target.value }))}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <label className="text-sm font-medium text-gray-700">
+                    Upload Images
+                    <div
+                      className={`mt-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center text-sm transition ${
+                        dragActive
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-gray-200 bg-white hover:border-indigo-300"
+                      } ${uploadingImages ? "opacity-70 cursor-not-allowed" : ""}`}
+                      aria-busy={uploadingImages}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragActive(true);
+                      }}
+                      onDragLeave={() => setDragActive(false)}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setDragActive(false);
+                        if (event.dataTransfer?.files?.length) {
+                          handleImageUpload(event.dataTransfer.files);
+                        }
+                      }}
+                      onPaste={(event) => {
+                        if (event.clipboardData?.files?.length) {
+                          handleImageUpload(event.clipboardData.files);
+                        }
+                      }}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        id="product-image-upload"
+                        onChange={(event) => handleImageUpload(event.target.files)}
+                        disabled={uploadingImages}
+                      />
+                      <label
+                        htmlFor="product-image-upload"
+                        className={`cursor-pointer ${uploadingImages ? "pointer-events-none" : ""}`}
+                      >
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                          ⬆️
+                        </div>
+                        <p className="mt-3 font-semibold text-gray-700">Click to upload or drag & drop</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {uploadingImages ? "Uploading and resizing images..." : "You can also paste images here."}
+                        </p>
+                      </label>
+                    </div>
+                    <span className="mt-2 block text-xs text-gray-500">
+                      Images are auto-resized to a max 1400px edge and stored as data URLs. For best performance, use optimized image URLs.
+                    </span>
+                  </label>
+
+                  {parseImages(productForm.images).length > 0 && (
+                    <div className="rounded-xl border border-gray-200 p-4">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-[0.2em]">Preview</p>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {parseImages(productForm.images)
+                          .slice(0, 6)
+                          .map((src, index) => (
+                            <div key={`${src}-${index}`} className="aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                              <img src={src} alt={`Upload ${index + 1}`} className="h-full w-full object-cover" />
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {productStep === 4 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-[0.2em]">Overview</p>
+                    <div className="mt-3 grid gap-3 text-sm text-gray-700">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Name</span>
+                        <span className="font-medium text-gray-900">{productForm.name || "—"}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Category</span>
+                        <span className="font-medium text-gray-900">{productForm.category || "—"}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Price</span>
+                        <span className="font-medium text-gray-900">₹{productForm.price || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Stock</span>
+                        <span className="font-medium text-gray-900">{productForm.stock || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-[0.2em]">Media</p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      {parseImages(productForm.images).length} image(s) ready.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={goToPrevProductStep}
+                    disabled={productStep === 0}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                      productStep === 0
+                        ? "border-gray-200 text-gray-400"
+                        : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Back
+                  </button>
+                  {productStep < lastProductStep ? (
+                    <button
+                      type="button"
+                      onClick={goToNextProductStep}
+                      className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                    >
+                      Next
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleCreateOrUpdate}
+                      className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                    >
+                      {formMode === "create" ? "Create Product" : "Save Changes"}
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Reset
+                  </button>
+                  <div className="text-xs text-gray-500">Lists accept comma or semicolon separated values.</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1694,8 +2097,8 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-gray-200 overflow-hidden">
-                <table className="w-full">
+              <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                <table className="w-full min-w-[520px]">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
@@ -2064,7 +2467,7 @@ export default function AdminPage() {
 
             <div className="px-6 py-6 space-y-6">
               {/* Customer Info */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="bg-slate-50 rounded-lg p-4">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email</p>
                   <p className="text-sm font-medium text-gray-900 mt-2">{selectedCustomer.email}</p>
@@ -2082,11 +2485,11 @@ export default function AdminPage() {
               {/* Order History */}
               <div>
                 <h4 className="text-lg font-bold text-gray-900 mb-4">Order History</h4>
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg overflow-x-auto">
                   {selectedCustomer.orders.length === 0 ? (
                     <div className="px-4 py-6 text-sm text-gray-500">No orders yet for this customer.</div>
                   ) : (
-                    <table className="w-full">
+                    <table className="w-full min-w-[720px]">
                       <thead className="bg-slate-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>

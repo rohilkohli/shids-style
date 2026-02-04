@@ -56,7 +56,7 @@ export function useCommerceStore() {
     }
   }, []);
 
-  const [ready] = useState(true);
+  const [ready, setReady] = useState(false);
   const [products, setProducts] = useState<Product[]>(
     storedState?.products?.length ? storedState.products : defaultProducts
   );
@@ -68,6 +68,40 @@ export function useCommerceStore() {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(storedState?.discountCodes ?? []);
   const [user, setUser] = useState<User | null>(storedState?.user ?? null);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>(storedState?.recentlyViewed ?? []);
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const ensureSession = async () => {
+      try {
+        const { error } = await supabase.auth.getSession();
+        if (error && active) {
+          if (error.message.includes("Invalid Refresh Token")) {
+            await supabase.auth.signOut({ scope: "local" });
+            if (typeof window !== "undefined") {
+              Object.keys(window.localStorage)
+                .filter((key) => key.startsWith("sb-") && key.endsWith("-auth-token"))
+                .forEach((key) => window.localStorage.removeItem(key));
+            }
+            setUser(null);
+          }
+        }
+      } catch {
+        if (active) {
+          setUser(null);
+        }
+      }
+    };
+    if (ready) {
+      ensureSession();
+    }
+    return () => {
+      active = false;
+    };
+  }, [ready]);
 
   useEffect(() => {
     if (!instanceIdRef.current) {
@@ -238,10 +272,10 @@ export function useCommerceStore() {
     if (error || !data.user) {
       throw new Error(error?.message || "Unable to register.");
     }
+    await supabase.auth.signOut();
+    setUser(null);
     const profile = await fetchProfile(email);
-    const nextUser = profile ?? mapSupabaseUser(data.user);
-    setUser(nextUser);
-    return nextUser;
+    return profile ?? mapSupabaseUser(data.user);
   };
 
   const signOut = () => {
@@ -428,6 +462,7 @@ export function useCommerceStore() {
   };
 
   const deleteCustomer = async (email: string) => {
+    await apiRequest<{ ok: true }>(`/api/users/${encodeURIComponent(email)}`, { method: "DELETE" });
     const toDelete = orders.filter((order: Order) => order.email === email);
     await Promise.all(toDelete.map((order) => deleteOrder(order.id)));
   };

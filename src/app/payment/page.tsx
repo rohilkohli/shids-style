@@ -123,14 +123,16 @@ export default function PaymentPage() {
     return (
       <main className="min-h-screen bg-[color:var(--background)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
-          <h1 className="text-3xl font-bold text-gray-900">Payment</h1>
-          <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
-          <Link
-            href="/shop"
-            className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            Shop Products
-          </Link>
+          <div className="rounded-2xl border border-gray-100 bg-white/90 p-8 text-center shadow-sm">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Payment</h1>
+            <p className="text-sm text-gray-500 mt-2">Your cart is empty.</p>
+            <Link
+              href="/shop"
+              className="inline-flex mt-6 rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+            >
+              Shop Products
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -203,13 +205,13 @@ export default function PaymentPage() {
                   </div>
                   <a
                     href={upiLink}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
                   >
                     Open UPI Apps
                   </a>
                   <button
                     type="button"
-                    className="inline-flex w-full items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:border-black"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     onClick={async () => {
                       if (!navigator.clipboard) return;
                       await navigator.clipboard.writeText("shids@upi");
@@ -229,7 +231,7 @@ export default function PaymentPage() {
                     id="payment-receipt"
                     type="file"
                     accept="image/*"
-                    className="flex-1 min-w-[220px] rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                    className="flex-1 min-w-[220px] rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null;
                       setReceipt(file);
@@ -246,7 +248,7 @@ export default function PaymentPage() {
                   />
                   <label
                     htmlFor="payment-receipt"
-                    className="group inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-black px-5 py-2 text-xs font-medium text-white transition hover:-translate-y-0.5 hover:bg-gray-900 hover:shadow-md active:translate-y-0"
+                    className="group inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-black px-5 py-2 text-xs font-medium text-white transition hover:-translate-y-0.5 hover:bg-gray-900 hover:shadow-md active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                   >
                     <span>Upload</span>
                     <svg
@@ -275,14 +277,14 @@ export default function PaymentPage() {
               </div>
 
               {message && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700" aria-live="polite">
                   {message}
                 </div>
               )}
 
               <button
                 onClick={handleConfirm}
-                className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition disabled:opacity-70"
+                className="w-full rounded-full btn-primary px-6 py-3 text-sm font-medium transition disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                 disabled={submitting}
               >
                 {submitting ? "Confirming..." : "Confirm Payment"}
@@ -301,7 +303,7 @@ export default function PaymentPage() {
                   </div>
                   <Link
                     href="/shipping"
-                    className="mt-4 inline-flex text-xs font-semibold text-gray-700 hover:text-black"
+                    className="mt-4 inline-flex text-xs font-semibold text-gray-700 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded"
                   >
                     Edit shipping details
                   </Link>
@@ -309,7 +311,7 @@ export default function PaymentPage() {
               ) : (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-xs text-amber-700">
                   Shipping details missing. Please go back to Shipping.
-                  <Link href="/shipping" className="ml-2 font-semibold underline">
+                  <Link href="/shipping" className="ml-2 font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 rounded">
                     Go now
                   </Link>
                 </div>

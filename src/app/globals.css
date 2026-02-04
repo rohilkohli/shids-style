@@ -14,6 +14,11 @@
   --primary-soft: #f3ebe4;
   --primary-border: #2b2b2b;
   --section: #faf7f4;
+  --bg-gradient: radial-gradient(1200px 600px at 10% -10%, rgba(255, 107, 168, 0.18), transparent 60%),
+    radial-gradient(1200px 700px at 90% 0%, rgba(99, 102, 241, 0.16), transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, #f6f3f9 38%, #eef2ff 100%);
+  --section-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 240, 248, 0.92) 100%);
+  --card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 244, 250, 0.96) 100%);
 }
 
 @theme inline {
@@ -30,7 +35,7 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--bg-gradient);
   color: var(--foreground);
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
@@ -38,6 +43,24 @@ body {
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+main,
+section,
+header {
+  background: transparent;
+}
+
+:where(.bg-white) {
+  background: var(--card-gradient) !important;
+}
+
+:where(.bg-gray-50, .bg-slate-50, .bg-zinc-50) {
+  background: var(--section-gradient) !important;
+}
+
+:where(.bg-gray-100, .bg-slate-100, .bg-zinc-100) {
+  background: linear-gradient(180deg, rgba(246, 243, 250, 0.95) 0%, rgba(240, 244, 255, 0.95) 100%) !important;
 }
 
 a {
@@ -85,17 +108,17 @@ a {
 }
 
 .section-tint {
-  background: var(--section);
+  background: var(--section-gradient);
 }
 
 .card-surface {
-  background: var(--card);
+  background: var(--card-gradient);
   border: 1px solid var(--primary-border);
   box-shadow: 0 10px 28px rgba(17, 24, 39, 0.06);
 }
 
 .card-muted {
-  background: var(--section);
+  background: var(--section-gradient);
   border: 1px solid var(--primary-border);
   box-shadow: 0 8px 22px rgba(17, 24, 39, 0.05);
 }

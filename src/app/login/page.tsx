@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   const storedEmail = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -45,23 +46,45 @@ export default function LoginPage() {
 
     try {
       const nextUser = await loginUser(normalizedEmail, password.trim());
+      setLoginSuccess(true);
       setRedirecting(true);
-      if (nextUser?.role === "admin") {
-        router.replace("/admin");
-      } else {
-        router.replace("/account");
-      }
+      const nextPath = nextUser?.role === "admin" ? "/admin" : "/";
+      setTimeout(() => {
+        router.replace(nextPath);
+      }, 1400);
     } catch (error) {
       setRedirecting(false);
       setMessage((error as Error).message);
     }
   };
 
-  if (!ready || redirecting) {
+  if (!ready) {
     return (
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 text-center text-gray-600">
-          {redirecting ? "Opening your panel..." : "Loading..."}
+          Loading...
+        </div>
+      </main>
+    );
+  }
+
+  if (redirecting) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="relative w-full max-w-md px-6">
+          <div className="absolute inset-0 -z-10 rounded-3xl bg-gradient-to-br from-pink-200/60 via-white to-indigo-100 blur-2xl" />
+          <div className="rounded-3xl border border-gray-200 bg-white px-6 py-8 text-center shadow-xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-2xl animate-bounce">
+              ✅
+            </div>
+            <h1 className="mt-4 text-xl font-bold text-gray-900">You’re logged in</h1>
+            <p className="mt-2 text-sm text-gray-500">Taking you to the main website now.</p>
+            {loginSuccess && (
+              <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-gray-100">
+                <div className="h-full w-full animate-pulse rounded-full bg-emerald-400" />
+              </div>
+            )}
+          </div>
         </div>
       </main>
     );
@@ -87,17 +110,17 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-pink-500 to-black">
+    <main className="min-h-screen bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-slate-950">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:py-16">
         <div className="mb-6 flex items-center justify-between">
-          <Link href="/" className="text-lg font-display font-bold text-gray-900">
-            SHIDS STYLE
+          <Link href="/" className="flex items-center">
+            <img src="/shids.svg" alt="Shids Style" className="h-7 sm:h-8 w-auto max-w-[160px]" />
           </Link>
         </div>
         <div className="grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="hidden lg:flex flex-col justify-between rounded-3xl border border-gray-200 bg-white/70 p-10 shadow-lg">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-gray-500 font-semibold">SHIDS STYLE</p>
+              <img src="/shids-style-logo.svg" alt="Shids Style" className="h-7 w-auto max-w-[160px]" />
               <h1 className="mt-4 text-4xl font-bold text-gray-900">Welcome back</h1>
               <p className="mt-3 text-sm text-gray-600">
                 Sign in to track orders, manage your profile, and save your favorites.
@@ -129,7 +152,7 @@ export default function LoginPage() {
                 Email address
                 <input
                   type="email"
-                  className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                   value={resolvedEmail}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
@@ -141,7 +164,7 @@ export default function LoginPage() {
                 <div className="relative mt-2">
                   <input
                     type={showPassword ? "text" : "password"}
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-12 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="Enter your password"
@@ -188,7 +211,10 @@ export default function LoginPage() {
               </div>
 
               {message && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                  aria-live="polite"
+                >
                   {message}
                 </div>
               )}

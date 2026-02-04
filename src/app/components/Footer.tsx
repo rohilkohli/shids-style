@@ -11,8 +11,18 @@ export default function Footer() {
               <li>support@shids.style</li>
               <li>Mon–Sat · 10am–6pm</li>
               <li className="flex gap-3">
-                <a href="https://instagram.com" className="hover:text-white transition">Instagram</a>
-                <a href="https://youtube.com" className="hover:text-white transition">YouTube</a>
+                <a
+                  href="https://www.instagram.com/shids.style?igsh=MXUydTRpNmdweXdoaQ%3D%3D"
+                  className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded"
+                >
+                  Instagram
+                </a>
+                <a
+                  href="https://www.facebook.com/people/Shidsstyle/61586509945395/"
+                  className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded"
+                >
+                  Facebook
+                </a>
               </li>
             </ul>
           </div>
@@ -20,27 +30,27 @@ export default function Footer() {
             <h3 className="font-medium mb-4">Legal</h3>
             <ul className="space-y-3 text-sm text-white/70">
               <li>
-                <Link href="/terms" className="hover:text-white transition">
+                <Link href="/terms" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Terms & Conditions
                 </Link>
               </li>
               <li>
-                <Link href="/policy" className="hover:text-white transition">
+                <Link href="/policy" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/shipping-policy" className="hover:text-white transition">
+                <Link href="/shipping-policy" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Shipping Policy
                 </Link>
               </li>
               <li>
-                <Link href="/refund-policy" className="hover:text-white transition">
+                <Link href="/refund-policy" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Refund Policy
                 </Link>
               </li>
               <li>
-                <Link href="/returns-policy" className="hover:text-white transition">
+                <Link href="/returns-policy" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Returns Policy
                 </Link>
               </li>
@@ -50,27 +60,27 @@ export default function Footer() {
             <h3 className="font-medium mb-4">Important Links</h3>
             <ul className="space-y-3 text-sm text-white/70">
               <li>
-                <Link href="/track" className="hover:text-white transition">
+                <Link href="/track" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Track Order
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="hover:text-white transition">
+                <Link href="/contact" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Contact Us
                 </Link>
               </li>
               <li>
-                <Link href="/recently-viewed" className="hover:text-white transition">
+                <Link href="/recently-viewed" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Recently Viewed
                 </Link>
               </li>
               <li>
-                <Link href="/wishlist" className="hover:text-white transition">
+                <Link href="/wishlist" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Wishlist
                 </Link>
               </li>
               <li>
-                <Link href="/account" className="hover:text-white transition">
+                <Link href="/account" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Account
                 </Link>
               </li>

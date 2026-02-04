@@ -94,3 +94,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   return NextResponse.json({ ok: true, data: mapUserRow(updated) });
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ email: string }> }) {
+  const resolved = await params;
+  const rawEmail = resolved?.email ?? "";
+  const lookupSource = rawEmail || request.nextUrl.pathname.split("/").pop() || "";
+  const currentEmail = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim().toLowerCase();
+
+  const { data: row, error } = await supabaseAdmin
+    .from("profiles")
+    .select("*")
+    .ilike("email", currentEmail)
+    .maybeSingle();
+
+  if (error || !row) {
+    return NextResponse.json({ ok: false, error: "User not found." }, { status: 404 });
+  }
+
+  const { error: deleteProfileError } = await supabaseAdmin
+    .from("profiles")
+    .delete()
+    .eq("id", row.id);
+
+  if (deleteProfileError) {
+    return NextResponse.json({ ok: false, error: deleteProfileError.message }, { status: 500 });
+  }
+
+  const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(row.id);
+  if (deleteAuthError) {
+    return NextResponse.json({ ok: false, error: deleteAuthError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, data: mapUserRow(row) });
+}

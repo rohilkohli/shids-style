@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,19 +34,23 @@ export default function RegisterPage() {
 
     try {
       await registerUser(name.trim(), normalizedEmail, password.trim());
-      router.push("/account");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("shids-style/login-email", normalizedEmail);
+      }
+      setSubmitted(true);
+      setMessage("Thanks for signing up! Please enter your email and password to log in.");
     } catch (error) {
       setMessage((error as Error).message);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[color:var(--background)]">
+    <main className="min-h-screen bg-gradient-to-br from-rose-400 via-amber-200 to-slate-950">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="hidden lg:flex flex-col justify-between rounded-3xl border border-gray-200 bg-white/70 p-10 shadow-lg">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-gray-500 font-semibold">SHIDS STYLE</p>
+              <img src="/shids-style-logo.svg" alt="Shids Style" className="h-7 w-auto max-w-[160px]" />
               <h1 className="mt-4 text-4xl font-bold text-gray-900">Create your account</h1>
               <p className="mt-3 text-sm text-gray-600">
                 Join to track orders, save favorites, and get early access to drops.
@@ -72,53 +77,76 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <label className="block text-sm font-medium text-gray-700">
-                Full name
-                <input
-                  type="text"
-                  className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Your name"
-                  required
-                />
-              </label>
-              <label className="block text-sm font-medium text-gray-700">
-                Email address
-                <input
-                  type="email"
-                  className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </label>
-              <label className="block text-sm font-medium text-gray-700">
-                Create password
-                <input
-                  type="password"
-                  className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Create a password"
-                />
-              </label>
-
-              {message && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {message}
+            {submitted ? (
+              <div className="mt-6 space-y-4">
+                <div
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900"
+                  aria-live="polite"
+                >
+                  <p className="font-semibold">Account created successfully.</p>
+                  <p className="mt-1">Thanks for signing up! Please enter your email and password to log in.</p>
                 </div>
-              )}
+                <button
+                  type="button"
+                  className="w-full rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-900"
+                  onClick={() => router.push("/login")}
+                >
+                  Go to login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Full name
+                  <input
+                    type="text"
+                    className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Your name"
+                    required
+                  />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Email address
+                  <input
+                    type="email"
+                    className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    required
+                  />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Create password
+                  <input
+                    type="password"
+                    className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Create a password"
+                    required
+                  />
+                </label>
 
-              <button
-                type="submit"
-                className="w-full rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-900"
-              >
-                Create account
-              </button>
-            </form>
+                {message && (
+                  <div
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                    aria-live="polite"
+                  >
+                    {message}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-900"
+                >
+                  Create account
+                </button>
+              </form>
+            )}
 
             <p className="mt-6 text-center text-xs text-gray-500">
               Already have an account?

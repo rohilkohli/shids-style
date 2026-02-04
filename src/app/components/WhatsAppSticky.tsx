@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-const WHATSAPP_NUMBER = "919084978839";
+const WHATSAPP_NUMBER = "917007866187";
 
 export default function WhatsAppSticky() {
   const [open, setOpen] = useState(false);

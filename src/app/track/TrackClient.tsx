@@ -60,7 +60,7 @@ export default function TrackClient() {
             <label className="text-sm font-medium text-gray-700">
               Order ID
               <input
-                className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                 placeholder="ORD-XXXX"
                 value={orderId}
                 onChange={(event) => setOrderId(event.target.value)}
@@ -70,7 +70,7 @@ export default function TrackClient() {
               Email Address
               <input
                 type="email"
-                className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -80,7 +80,7 @@ export default function TrackClient() {
 
           <div className="mt-6 flex flex-wrap gap-3">
             <button
-              className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60"
+              className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
               onClick={handleTrack}
               disabled={!orderId.trim() || !email.trim() || loading}
             >
@@ -88,13 +88,17 @@ export default function TrackClient() {
             </button>
             <Link
               href="/shop"
-              className="rounded-full border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-full border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
             >
               Continue Shopping
             </Link>
           </div>
 
-          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="mt-4 text-sm text-red-600" aria-live="polite">
+              {error}
+            </p>
+          )}
 
           {order && (
             <div className="mt-8 rounded-xl border border-gray-100 bg-gray-50/80 p-6">

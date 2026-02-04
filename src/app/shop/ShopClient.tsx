@@ -120,18 +120,19 @@ export default function ShopClient() {
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Collection</h1>
               <p className="text-xs sm:text-sm text-gray-500">Browse the complete catalog.</p>
             </div>
+            <p className="text-xs text-gray-500">{filteredProducts.length} items</p>
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
               <input
                 type="text"
                 placeholder="Search products..."
-                className="w-full sm:w-64 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition bg-white text-sm"
+                className="w-full sm:w-64 px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition bg-white text-sm focus-visible:ring-2 focus-visible:ring-black/10"
                 value={resolvedSearch}
                 onChange={(e) => setSearch(e.target.value)}
               />
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full sm:w-48 px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:border-gray-400 bg-white"
+                className="w-full sm:w-48 px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:border-gray-400 bg-white focus-visible:ring-2 focus-visible:ring-black/10"
               >
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
@@ -142,7 +143,7 @@ export default function ShopClient() {
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortOption)}
-                className="w-full sm:w-44 px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:border-gray-400 bg-white"
+                className="w-full sm:w-44 px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:border-gray-400 bg-white focus-visible:ring-2 focus-visible:ring-black/10"
               >
                 <option value="featured">Featured</option>
                 <option value="price-asc">Price: Low to High</option>
@@ -153,6 +154,11 @@ export default function ShopClient() {
           </div>
 
           <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full rounded-2xl border border-gray-200 bg-white/90 p-8 text-center text-sm text-gray-600">
+                No products match your filters.
+              </div>
+            )}
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
