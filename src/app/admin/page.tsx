@@ -553,7 +553,7 @@ export default function AdminPage() {
     const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     const withItalic = withBold.replace(/\*(.+?)\*/g, "<em>$1</em>");
     const withLines = withItalic.replace(/(^|\n)-\s+(.*)/g, "$1<li>$2</li>");
-    const wrappedLists = withLines.replace(/(<li>.*?<\/li>)/gs, "<ul class=\"list-disc pl-5 space-y-1 text-sm text-gray-700\">$1</ul>");
+    const wrappedLists = withLines.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul class=\"list-disc pl-5 space-y-1 text-sm text-gray-700\">$1</ul>");
     return wrappedLists.replace(/\n/g, "<br />");
   };
 
