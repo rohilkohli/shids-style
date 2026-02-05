@@ -75,6 +75,7 @@ export default function AdminPage() {
 
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editBaseline, setEditBaseline] = useState<Product | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showProductPanel, setShowProductPanel] = useState(false);
@@ -455,6 +456,7 @@ export default function AdminPage() {
     });
     setFormMode("create");
     setSelectedProduct(null);
+    setEditBaseline(null);
     setProductStep(0);
   };
 
@@ -544,6 +546,51 @@ export default function AdminPage() {
     if (parseImages(productForm.images).length === 0) gaps.push("Images");
     return gaps;
   })();
+
+  const editChanges = (() => {
+    if (formMode !== "edit" || !editBaseline) return [];
+    const changes: { label: string; from: string; to: string }[] = [];
+    const currentColors = parseList(productForm.colors);
+    const currentSizes = parseList(productForm.sizes);
+    const currentTags = parseList(productForm.tags);
+    const currentHighlights = parseList(productForm.highlights);
+    const currentImages = parseImages(productForm.images);
+
+    const fmt = (value: unknown) => {
+      if (Array.isArray(value)) return value.length ? value.join(", ") : "None";
+      if (value === undefined || value === null) return "None";
+      if (value === "") return "None";
+      return String(value);
+    };
+    const pushChange = (label: string, fromValue: unknown, toValue: unknown) => {
+      const from = fmt(fromValue);
+      const to = fmt(toValue);
+      if (from !== to) {
+        changes.push({ label, from, to });
+      }
+    };
+
+    pushChange("Name", editBaseline.name, productForm.name);
+    pushChange("Category", editBaseline.category, productForm.category);
+    pushChange("Price", editBaseline.price, Number(productForm.price) || 0);
+    pushChange("Compare at", editBaseline.originalPrice ?? "—", productForm.originalPrice ?? "—");
+    pushChange("Discount %", editBaseline.discountPercent ?? 0, productForm.discountPercent ?? 0);
+    pushChange("Stock", editBaseline.stock, Number(productForm.stock) || 0);
+    pushChange("Badge", editBaseline.badge ?? "—", productForm.badge ?? "—");
+    pushChange("Colors", editBaseline.colors ?? [], currentColors);
+    pushChange("Sizes", editBaseline.sizes ?? [], currentSizes);
+    pushChange("Tags", editBaseline.tags ?? [], currentTags);
+    pushChange("Highlights", editBaseline.highlights ?? [], currentHighlights);
+    pushChange("Images", (editBaseline.images ?? []).length, currentImages.length);
+
+    return changes;
+  })();
+
+  const revertToBaseline = () => {
+    if (!editBaseline) return;
+    populateForm(editBaseline);
+    setProductStep(0);
+  };
 
   const toDescriptionHtml = (value: string) => {
     const escaped = value
@@ -648,6 +695,7 @@ export default function AdminPage() {
       try {
         const updated = await updateProduct(selectedProduct.id, updates);
         setSelectedProduct(updated ?? selectedProduct);
+        setEditBaseline(updated ?? selectedProduct);
         setFlash("Product updated");
       } catch (error) {
         setFlash((error as Error).message);
@@ -805,6 +853,7 @@ export default function AdminPage() {
 
   const openProductEdit = (product: Product) => {
     setSelectedProduct(product);
+    setEditBaseline(product);
     populateForm(product);
     setFormMode("edit");
     setProductStep(0);
@@ -1824,6 +1873,41 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
+
+              {formMode === "edit" && editBaseline && (
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.25em] text-indigo-600 font-semibold">Edit assist</p>
+                      <p className="text-sm text-indigo-900">
+                        Compare against saved version and revert if needed before publishing.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={revertToBaseline}
+                      className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:border-indigo-300"
+                    >
+                      Revert to saved
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {editChanges.length === 0 && (
+                      <p className="text-xs text-indigo-800">No changes yet—form matches saved product.</p>
+                    )}
+                    {editChanges.map((change) => (
+                      <div
+                        key={change.label}
+                        className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs text-indigo-900 shadow-sm"
+                      >
+                        <p className="font-semibold text-[13px] text-indigo-800">{change.label}</p>
+                        <p className="text-[11px] text-indigo-600 line-clamp-2">From: {change.from}</p>
+                        <p className="text-[11px] text-indigo-700 line-clamp-2">To: {change.to}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {productStep === 0 && (
                 <div className="space-y-4">
