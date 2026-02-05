@@ -75,6 +75,7 @@ export default function AdminPage() {
 
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editBaseline, setEditBaseline] = useState<Product | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showProductPanel, setShowProductPanel] = useState(false);
@@ -86,6 +87,8 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [showRawImages, setShowRawImages] = useState(false);
+  const [descriptionPreview, setDescriptionPreview] = useState(false);
+  const [imageLinkInput, setImageLinkInput] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -387,6 +390,51 @@ export default function AdminPage() {
     { title: "Media", description: "Images and uploads" },
     { title: "Review", description: "Final check before save" },
   ];
+  const productPresets: {
+    label: string;
+    helper: string;
+    values: Partial<ProductFormState>;
+  }[] = [
+    {
+      label: "Bestseller Tee",
+      helper: "240 GSM cotton, evergreen streetwear",
+      values: {
+        category: "Oversized Tees",
+        price: 699,
+        originalPrice: 999,
+        stock: 80,
+        tags: "oversized,streetwear,unisex,summer",
+        highlights: "240 GSM cotton;Boxy fit;Pre-shrunk;Bio-washed",
+        badge: "Bestseller",
+      },
+    },
+    {
+      label: "Denim Cargo",
+      helper: "Utility-forward fit with stretch",
+      values: {
+        category: "Cargo & Denims",
+        price: 1499,
+        originalPrice: 1999,
+        stock: 60,
+        tags: "cargo,denim,utility,stretch",
+        highlights: "Stretch denim;Six pockets;YKK zippers;Tailored taper",
+        badge: "New drop",
+      },
+    },
+    {
+      label: "Dress Drop",
+      helper: "Occasion-ready, light and flowy",
+      values: {
+        category: "Summer Dresses",
+        price: 1299,
+        originalPrice: 1699,
+        stock: 50,
+        tags: "dress,summer,occasion,lightweight",
+        highlights: "Lined;Wrinkle-resistant;Pockets;Breathable weave",
+        badge: "Limited",
+      },
+    },
+  ];
   const lastProductStep = productSteps.length - 1;
 
   const resetForm = () => {
@@ -408,6 +456,7 @@ export default function AdminPage() {
     });
     setFormMode("create");
     setSelectedProduct(null);
+    setEditBaseline(null);
     setProductStep(0);
   };
 
@@ -475,6 +524,84 @@ export default function AdminPage() {
     }
 
     setProductStep(Math.min(nextStep, lastProductStep));
+  };
+
+  const applyPreset = (preset: (typeof productPresets)[number]) => {
+    setProductForm((prev) => ({
+      ...prev,
+      ...preset.values,
+    }));
+    setFlash(`Preset "${preset.label}" applied`);
+    setTimeout(() => setFlash(null), 1400);
+    setProductStep(1);
+  };
+
+  const reviewGaps = (() => {
+    const gaps: string[] = [];
+    if (!productForm.name.trim()) gaps.push("Name");
+    if (!productForm.category.trim()) gaps.push("Category");
+    if (!productForm.description.trim()) gaps.push("Description");
+    if (!(Number(productForm.price) > 0)) gaps.push("Price");
+    if (!(Number(productForm.stock) > 0)) gaps.push("Stock");
+    if (parseImages(productForm.images).length === 0) gaps.push("Images");
+    return gaps;
+  })();
+
+  const editChanges = (() => {
+    if (formMode !== "edit" || !editBaseline) return [];
+    const changes: { label: string; from: string; to: string }[] = [];
+    const currentColors = parseList(productForm.colors);
+    const currentSizes = parseList(productForm.sizes);
+    const currentTags = parseList(productForm.tags);
+    const currentHighlights = parseList(productForm.highlights);
+    const currentImages = parseImages(productForm.images);
+
+    const fmt = (value: unknown) => {
+      if (Array.isArray(value)) return value.length ? value.join(", ") : "None";
+      if (value === undefined || value === null) return "None";
+      if (value === "") return "None";
+      return String(value);
+    };
+    const pushChange = (label: string, fromValue: unknown, toValue: unknown) => {
+      const from = fmt(fromValue);
+      const to = fmt(toValue);
+      if (from !== to) {
+        changes.push({ label, from, to });
+      }
+    };
+
+    pushChange("Name", editBaseline.name, productForm.name);
+    pushChange("Category", editBaseline.category, productForm.category);
+    pushChange("Price", editBaseline.price, Number(productForm.price) || 0);
+    pushChange("Compare at", editBaseline.originalPrice ?? "—", productForm.originalPrice ?? "—");
+    pushChange("Discount %", editBaseline.discountPercent ?? 0, productForm.discountPercent ?? 0);
+    pushChange("Stock", editBaseline.stock, Number(productForm.stock) || 0);
+    pushChange("Badge", editBaseline.badge ?? "—", productForm.badge ?? "—");
+    pushChange("Colors", editBaseline.colors ?? [], currentColors);
+    pushChange("Sizes", editBaseline.sizes ?? [], currentSizes);
+    pushChange("Tags", editBaseline.tags ?? [], currentTags);
+    pushChange("Highlights", editBaseline.highlights ?? [], currentHighlights);
+    pushChange("Images", (editBaseline.images ?? []).length, currentImages.length);
+
+    return changes;
+  })();
+
+  const revertToBaseline = () => {
+    if (!editBaseline) return;
+    populateForm(editBaseline);
+    setProductStep(0);
+  };
+
+  const toDescriptionHtml = (value: string) => {
+    const escaped = value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    const withItalic = withBold.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    const withLines = withItalic.replace(/(^|\n)-\s+(.*)/g, "$1<li>$2</li>");
+    const wrappedLists = withLines.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul class=\"list-disc pl-5 space-y-1 text-sm text-gray-700\">$1</ul>");
+    return wrappedLists.replace(/\n/g, "<br />");
   };
 
   const populateForm = (product: Product) => {
@@ -568,6 +695,7 @@ export default function AdminPage() {
       try {
         const updated = await updateProduct(selectedProduct.id, updates);
         setSelectedProduct(updated ?? selectedProduct);
+        setEditBaseline(updated ?? selectedProduct);
         setFlash("Product updated");
       } catch (error) {
         setFlash((error as Error).message);
@@ -725,6 +853,7 @@ export default function AdminPage() {
 
   const openProductEdit = (product: Product) => {
     setSelectedProduct(product);
+    setEditBaseline(product);
     populateForm(product);
     setFormMode("edit");
     setProductStep(0);
@@ -1745,34 +1874,141 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {productStep === 0 && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Name
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.name}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium text-gray-700">
-                    Category
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.category}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
-                    />
-                  </label>
+              {formMode === "edit" && editBaseline && (
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.25em] text-indigo-600 font-semibold">Edit assist</p>
+                      <p className="text-sm text-indigo-900">
+                        Compare against saved version and revert if needed before publishing.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={revertToBaseline}
+                      className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:border-indigo-300"
+                    >
+                      Revert to saved
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {editChanges.length === 0 && (
+                      <p className="text-xs text-indigo-800">No changes yet—form matches saved product.</p>
+                    )}
+                    {editChanges.map((change) => (
+                      <div
+                        key={change.label}
+                        className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs text-indigo-900 shadow-sm"
+                      >
+                        <p className="font-semibold text-[13px] text-indigo-800">{change.label}</p>
+                        <p className="text-[11px] text-indigo-600 line-clamp-2">From: {change.from}</p>
+                        <p className="text-[11px] text-indigo-700 line-clamp-2">To: {change.to}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                  <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                    Description
-                    <textarea
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      rows={4}
-                      value={productForm.description}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
-                    />
-                  </label>
+              {productStep === 0 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Seller shortcuts</p>
+                        <p className="text-sm text-gray-700">Apply a preset to auto-fill pricing, tags, and highlights.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {productPresets.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => applyPreset(preset)}
+                            className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-gray-800 border border-gray-200 shadow-sm hover:border-indigo-200 hover:text-indigo-700 transition"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-3">
+                      {productPresets.map((preset) => (
+                        <div key={`${preset.label}-helper`} className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2">
+                          <p className="font-semibold text-gray-800">{preset.label}</p>
+                          <p className="text-gray-600">{preset.helper}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Name
+                      <input
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        value={productForm.name}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-gray-700">
+                      Category
+                      <input
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        value={productForm.category}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
+                      />
+                    </label>
+
+                    <label className="text-sm font-medium text-gray-700 md:col-span-2">
+                      Description
+                      <textarea
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        rows={4}
+                        value={productForm.description}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
+                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span className="font-semibold text-gray-700">Formatting:</span>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              description: prev.description
+                                ? `${prev.description}\n- Point 1\n- Point 2\n- Point 3`
+                                : "- Point 1\n- Point 2\n- Point 3",
+                            }))
+                          }
+                        >
+                          Bullet template
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              description: `${prev.description} **Bold text** *Italic text*`,
+                            }))
+                          }
+                        >
+                          Add bold/italic
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => setDescriptionPreview((prev) => !prev)}
+                        >
+                          {descriptionPreview ? "Hide preview" : "Show preview"}
+                        </button>
+                      </div>
+                      {descriptionPreview && (
+                        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-800 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 font-semibold mb-1">Preview</p>
+                          <div dangerouslySetInnerHTML={{ __html: toDescriptionHtml(productForm.description) || "<em>No description</em>" }} />
+                        </div>
+                      )}
+                    </label>
+                  </div>
                 </div>
               )}
 
@@ -1954,6 +2190,30 @@ export default function AdminPage() {
                     <span className="mt-2 block text-xs text-gray-500">
                       Images are auto-resized to a max 1400px edge and stored as data URLs. For best performance, use optimized image URLs.
                     </span>
+                    <div className="mt-3 flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-center">
+                      <input
+                        type="url"
+                        placeholder="Paste image URL and click add"
+                        value={imageLinkInput}
+                        onChange={(event) => setImageLinkInput(event.target.value)}
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                        disabled={!imageLinkInput.trim()}
+                        onClick={() => {
+                          if (!imageLinkInput.trim()) return;
+                          setProductForm((prev) => {
+                            const existing = prev.images ? `${prev.images.trim()}\n` : "";
+                            return { ...prev, images: `${existing}${imageLinkInput.trim()}` };
+                          });
+                          setImageLinkInput("");
+                        }}
+                      >
+                        Add image URL
+                      </button>
+                    </div>
                   </label>
 
                   {parseImages(productForm.images).length > 0 && (
@@ -1982,6 +2242,30 @@ export default function AdminPage() {
 
               {productStep === 4 && (
                 <div className="space-y-4">
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-[0.2em]">Readiness check</p>
+                        <p className="text-sm text-amber-800">
+                          {reviewGaps.length === 0
+                            ? "All required fields look good — ready to publish."
+                            : "Fill these before publishing to avoid rework."}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-800 border border-amber-200">
+                        Seller assist
+                      </span>
+                    </div>
+                    {reviewGaps.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {reviewGaps.map((gap) => (
+                          <span key={gap} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200">
+                            {gap} missing
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="rounded-2xl border border-gray-200 bg-white p-5">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-[0.2em]">Overview</p>
                     <div className="mt-3 grid gap-3 text-sm text-gray-700">

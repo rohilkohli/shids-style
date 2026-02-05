@@ -23,6 +23,7 @@ export default function Navbar() {
   const wishlistCount = useMemo(() => wishlist.length, [wishlist]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

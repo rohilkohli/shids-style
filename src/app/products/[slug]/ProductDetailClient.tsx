@@ -77,7 +77,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         <section className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
-            <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg group">
+            <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg group aspect-[4/5]">
               {activeImage ? (
                 <Image
                   src={activeImage}
@@ -86,7 +86,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   priority
                   sizes="(min-width: 1024px) 50vw, 100vw"
                   quality={85}
-                  className="object-cover transition duration-700 group-hover:scale-105"
+                  className="object-contain transition duration-700 group-hover:scale-105 bg-white"
                 />
               ) : (
                 <div className="flex h-full min-h-[360px] items-center justify-center bg-gray-100 text-sm text-gray-500">
@@ -132,18 +132,18 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   )}
                   onClick={() => setSelectedImageIndex(index)}
                   aria-pressed={safeImageIndex === index}
-                >
-                  <div className="relative h-full w-full">
-                    <Image
-                      src={img}
-                      alt={`${product.name} ${index + 1}`}
-                      fill
-                      sizes="(min-width: 640px) 80px, 64px"
-                      quality={75}
-                      className="object-cover"
-                    />
-                  </div>
-                </button>
+                  >
+                    <div className="relative h-full w-full">
+                      <Image
+                        src={img}
+                        alt={`${product.name} ${index + 1}`}
+                        fill
+                        sizes="(min-width: 640px) 80px, 64px"
+                        quality={75}
+                        className="object-contain bg-white"
+                      />
+                    </div>
+                  </button>
               ))}
             </div>
           </div>
