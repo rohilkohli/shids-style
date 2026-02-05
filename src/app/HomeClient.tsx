@@ -390,7 +390,7 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
             </button>
           </div>
           {/* Filters */}
-          <div className="mb-8 space-y-4">
+          <div className="mb-8 space-y-4 frosted-rail px-4 py-3 sm:py-4">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 {categories.map((cat) => (
