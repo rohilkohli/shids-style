@@ -387,6 +387,51 @@ export default function AdminPage() {
     { title: "Media", description: "Images and uploads" },
     { title: "Review", description: "Final check before save" },
   ];
+  const productPresets: {
+    label: string;
+    helper: string;
+    values: Partial<ProductFormState>;
+  }[] = [
+    {
+      label: "Bestseller Tee",
+      helper: "240 GSM cotton, evergreen streetwear",
+      values: {
+        category: "Oversized Tees",
+        price: 699,
+        originalPrice: 999,
+        stock: 80,
+        tags: "oversized,streetwear,unisex,summer",
+        highlights: "240 GSM cotton;Boxy fit;Pre-shrunk;Bio-washed",
+        badge: "Bestseller",
+      },
+    },
+    {
+      label: "Denim Cargo",
+      helper: "Utility-forward fit with stretch",
+      values: {
+        category: "Cargo & Denims",
+        price: 1499,
+        originalPrice: 1999,
+        stock: 60,
+        tags: "cargo,denim,utility,stretch",
+        highlights: "Stretch denim;Six pockets;YKK zippers;Tailored taper",
+        badge: "New drop",
+      },
+    },
+    {
+      label: "Dress Drop",
+      helper: "Occasion-ready, light and flowy",
+      values: {
+        category: "Summer Dresses",
+        price: 1299,
+        originalPrice: 1699,
+        stock: 50,
+        tags: "dress,summer,occasion,lightweight",
+        highlights: "Lined;Wrinkle-resistant;Pockets;Breathable weave",
+        badge: "Limited",
+      },
+    },
+  ];
   const lastProductStep = productSteps.length - 1;
 
   const resetForm = () => {
@@ -476,6 +521,27 @@ export default function AdminPage() {
 
     setProductStep(Math.min(nextStep, lastProductStep));
   };
+
+  const applyPreset = (preset: (typeof productPresets)[number]) => {
+    setProductForm((prev) => ({
+      ...prev,
+      ...preset.values,
+    }));
+    setFlash(`Preset "${preset.label}" applied`);
+    setTimeout(() => setFlash(null), 1400);
+    setProductStep(1);
+  };
+
+  const reviewGaps = (() => {
+    const gaps: string[] = [];
+    if (!productForm.name.trim()) gaps.push("Name");
+    if (!productForm.category.trim()) gaps.push("Category");
+    if (!productForm.description.trim()) gaps.push("Description");
+    if (!(Number(productForm.price) > 0)) gaps.push("Price");
+    if (!(Number(productForm.stock) > 0)) gaps.push("Stock");
+    if (parseImages(productForm.images).length === 0) gaps.push("Images");
+    return gaps;
+  })();
 
   const populateForm = (product: Product) => {
     setProductForm({
@@ -1746,33 +1812,63 @@ export default function AdminPage() {
               </div>
 
               {productStep === 0 && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Name
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.name}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium text-gray-700">
-                    Category
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.category}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
-                    />
-                  </label>
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Seller shortcuts</p>
+                        <p className="text-sm text-gray-700">Apply a preset to auto-fill pricing, tags, and highlights.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {productPresets.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => applyPreset(preset)}
+                            className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-gray-800 border border-gray-200 shadow-sm hover:border-indigo-200 hover:text-indigo-700 transition"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-3">
+                      {productPresets.map((preset) => (
+                        <div key={`${preset.label}-helper`} className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2">
+                          <p className="font-semibold text-gray-800">{preset.label}</p>
+                          <p className="text-gray-600">{preset.helper}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Name
+                      <input
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        value={productForm.name}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-gray-700">
+                      Category
+                      <input
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        value={productForm.category}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
+                      />
+                    </label>
 
-                  <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                    Description
-                    <textarea
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      rows={4}
-                      value={productForm.description}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
-                    />
-                  </label>
+                    <label className="text-sm font-medium text-gray-700 md:col-span-2">
+                      Description
+                      <textarea
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        rows={4}
+                        value={productForm.description}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
 
@@ -1982,6 +2078,30 @@ export default function AdminPage() {
 
               {productStep === 4 && (
                 <div className="space-y-4">
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-[0.2em]">Readiness check</p>
+                        <p className="text-sm text-amber-800">
+                          {reviewGaps.length === 0
+                            ? "All required fields look good — ready to publish."
+                            : "Fill these before publishing to avoid rework."}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-800 border border-amber-200">
+                        Seller assist
+                      </span>
+                    </div>
+                    {reviewGaps.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {reviewGaps.map((gap) => (
+                          <span key={gap} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200">
+                            {gap} missing
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="rounded-2xl border border-gray-200 bg-white p-5">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-[0.2em]">Overview</p>
                     <div className="mt-3 grid gap-3 text-sm text-gray-700">
