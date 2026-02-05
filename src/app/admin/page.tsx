@@ -86,6 +86,8 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [showRawImages, setShowRawImages] = useState(false);
+  const [descriptionPreview, setDescriptionPreview] = useState(false);
+  const [imageLinkInput, setImageLinkInput] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -542,6 +544,18 @@ export default function AdminPage() {
     if (parseImages(productForm.images).length === 0) gaps.push("Images");
     return gaps;
   })();
+
+  const toDescriptionHtml = (value: string) => {
+    const escaped = value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    const withItalic = withBold.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    const withLines = withItalic.replace(/(^|\n)-\s+(.*)/g, "$1<li>$2</li>");
+    const wrappedLists = withLines.replace(/(<li>.*?<\/li>)/gs, "<ul class=\"list-disc pl-5 space-y-1 text-sm text-gray-700\">$1</ul>");
+    return wrappedLists.replace(/\n/g, "<br />");
+  };
 
   const populateForm = (product: Product) => {
     setProductForm({
@@ -1867,6 +1881,48 @@ export default function AdminPage() {
                         value={productForm.description}
                         onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
                       />
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span className="font-semibold text-gray-700">Formatting:</span>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              description: prev.description
+                                ? `${prev.description}\n- Point 1\n- Point 2\n- Point 3`
+                                : "- Point 1\n- Point 2\n- Point 3",
+                            }))
+                          }
+                        >
+                          Bullet template
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() =>
+                            setProductForm((prev) => ({
+                              ...prev,
+                              description: `${prev.description} **Bold text** *Italic text*`,
+                            }))
+                          }
+                        >
+                          Add bold/italic
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => setDescriptionPreview((prev) => !prev)}
+                        >
+                          {descriptionPreview ? "Hide preview" : "Show preview"}
+                        </button>
+                      </div>
+                      {descriptionPreview && (
+                        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-800 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 font-semibold mb-1">Preview</p>
+                          <div dangerouslySetInnerHTML={{ __html: toDescriptionHtml(productForm.description) || "<em>No description</em>" }} />
+                        </div>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -2050,6 +2106,30 @@ export default function AdminPage() {
                     <span className="mt-2 block text-xs text-gray-500">
                       Images are auto-resized to a max 1400px edge and stored as data URLs. For best performance, use optimized image URLs.
                     </span>
+                    <div className="mt-3 flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-center">
+                      <input
+                        type="url"
+                        placeholder="Paste image URL and click add"
+                        value={imageLinkInput}
+                        onChange={(event) => setImageLinkInput(event.target.value)}
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                        disabled={!imageLinkInput.trim()}
+                        onClick={() => {
+                          if (!imageLinkInput.trim()) return;
+                          setProductForm((prev) => {
+                            const existing = prev.images ? `${prev.images.trim()}\n` : "";
+                            return { ...prev, images: `${existing}${imageLinkInput.trim()}` };
+                          });
+                          setImageLinkInput("");
+                        }}
+                      >
+                        Add image URL
+                      </button>
+                    </div>
                   </label>
 
                   {parseImages(productForm.images).length > 0 && (
