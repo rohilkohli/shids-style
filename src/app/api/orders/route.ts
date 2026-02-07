@@ -349,7 +349,7 @@ export async function POST(request: NextRequest) {
       price: Number(item.price ?? 0),
     }));
 
-    // Calculate estimated delivery (7-10 business days from now)
+    // Calculate estimated delivery (7-10 calendar days from now)
     const estimatedDate = new Date();
     estimatedDate.setDate(estimatedDate.getDate() + 7);
     const estimatedDelivery = `${estimatedDate.toLocaleDateString("en-IN", { 
