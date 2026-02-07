@@ -5,16 +5,11 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getProductPrice, useCommerceStore } from "./lib/store";
 import { classNames, formatCurrency } from "./lib/utils";
-import type { Product } from "./lib/types";
+import type { Category, Product } from "./lib/types";
 import CartDrawer from "./components/CartDrawer";
 import HeroCarousel, { HeroItem } from "./components/HeroCarousel";
 
 const SHIPPING_DURATION = "48 hours";
-const FEATURED_IMAGES = [
-  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=600&h=800&fit=crop",
-  "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600&h=800&fit=crop",
-];
 
 type FilterState = {
   search: string;
@@ -45,28 +40,28 @@ function ProductCard({
   const lowStock = product.stock > 0 && product.stock <= 3;
 
   return (
-    <div className="group relative rounded-lg overflow-hidden card-surface hover-3d">
-      <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
+    <div className="group relative rounded-2xl overflow-hidden card-surface hover-3d">
+      <div className="absolute left-2 top-2 sm:left-3 sm:top-3 z-10 flex max-w-[70%] flex-col gap-1.5">
         {product.badge && (
-          <span className="inline-flex items-center rounded-full bg-white/95 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900 shadow">
+          <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-gray-900 shadow leading-tight">
             {product.badge}
           </span>
         )}
         {computedDiscountPercent && (
-          <span className="inline-flex items-center rounded-full bg-[color:var(--primary)] px-3 py-1 text-xs font-semibold text-white shadow">
+          <span className="inline-flex items-center rounded-full bg-[color:var(--primary)] px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-white shadow leading-tight">
             -{computedDiscountPercent}%
           </span>
         )}
         {lowStock && (
-          <span className="inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-300 shadow">
+          <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-amber-800 border border-amber-300 shadow leading-tight">
             Low stock
           </span>
         )}
       </div>
-      <div className="absolute top-3 right-3 z-10">
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
         <button
           className={classNames(
-            "rounded-full w-10 h-10 flex items-center justify-center transition-colors icon-button",
+            "rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-colors icon-button text-lg leading-none",
             wished ? "bg-[color:var(--primary)] text-white border-transparent" : "hover:bg-[color:var(--primary-soft)]"
           )}
           onClick={() => onWishlist(product.id)}
@@ -90,24 +85,26 @@ function ProductCard({
         </div>
       </Link>
 
-      <div className="p-3 sm:p-4 space-y-2">
+      <div className="p-3 sm:p-4 space-y-2.5">
         <div className="flex items-start justify-between gap-2">
           <Link href={`/products/${product.slug}`} className="flex-1">
-            <h3 className="text-sm sm:text-base font-medium text-gray-900 hover:underline">{product.name}</h3>
+            <h3 className="text-[13px] sm:text-base font-medium text-gray-900 hover:underline line-clamp-2">
+              {product.name}
+            </h3>
           </Link>
         </div>
 
-        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
+        <div className="flex items-center gap-1.5 text-[11px] sm:text-sm text-gray-500">
           <span>{product.category}</span>
           {product.rating ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-700">
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[10px] sm:text-[11px] font-semibold text-gray-700">
               <svg viewBox="0 0 24 24" className="h-3 w-3 text-amber-500" fill="currentColor" aria-hidden="true">
                 <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
               </svg>
               {product.rating.toFixed(1)}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-700" aria-label="Fresh drop">
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[10px] sm:text-[11px] font-semibold text-gray-700" aria-label="Fresh drop">
               Fresh drop
             </span>
           )}
@@ -125,18 +122,20 @@ function ProductCard({
             {product.colors.slice(0, 4).map((color) => (
               <span
                 key={color}
-                className="h-5 w-5 rounded-full border border-black/10 shadow-sm"
+                className="h-4 w-4 sm:h-5 sm:w-5 rounded-full border border-black/10 shadow-sm"
                 style={{ backgroundColor: color }}
                 aria-label={`Color ${color}`}
               />
             ))}
             {product.colors.length > 4 && (
-              <span className="text-[11px] text-gray-600 font-semibold">+{product.colors.length - 4}</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-600 font-semibold">
+                +{product.colors.length - 4}
+              </span>
             )}
           </div>
         ) : null}
 
-        <div className="flex items-center gap-2 text-[11px] text-gray-600">
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-600">
           <span
             className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 border border-gray-200"
             aria-label={`Ships in ${SHIPPING_DURATION}`}
@@ -149,7 +148,11 @@ function ProductCard({
             </svg>
             Ships in {SHIPPING_DURATION}
           </span>
-          {lowStock && <span className="text-[11px] font-semibold text-amber-700">Only {product.stock} left</span>}
+          {lowStock && (
+            <span className="text-[10px] sm:text-[11px] font-semibold text-amber-700">
+              Only {product.stock} left
+            </span>
+          )}
         </div>
 
         <button
@@ -180,17 +183,29 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState<string | null>(null);
   const [heroItems] = useState<HeroItem[]>(initialHeroItems);
+  const [categoryItems, setCategoryItems] = useState<Category[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const categoryOptions = useMemo(
-    () => Array.from(new Set(products.map((product) => product.category).filter(Boolean))),
-    [products]
-  );
-  const categories = useMemo(() => ["All", ...categoryOptions], [categoryOptions]);
-  const featuredCategories = useMemo(() => {
-    if (categoryOptions.length >= 3) return categoryOptions.slice(0, 3);
+  const categoryNames = useMemo(() => {
+    if (categoryItems.length) {
+      return categoryItems.map((category) => category.name).filter(Boolean);
+    }
+    return Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
+  }, [categoryItems, products]);
+  const categories = useMemo(() => ["All", ...categoryNames], [categoryNames]);
+  const featuredCategories = useMemo<Category[]>(() => {
+    if (categoryItems.length) return categoryItems.slice(0, 3);
+    const buildFallback = (name: string, index: number) => ({
+      id: -(index + 1),
+      name,
+      slug: name.toLowerCase().replace(/\s+/g, "-"),
+      featuredProductId: undefined,
+    });
+    if (categoryNames.length >= 3) {
+      return categoryNames.slice(0, 3).map(buildFallback);
+    }
     const fallbacks = ["New Arrivals", "Signature Fits", "Everyday Essentials"];
-    return [...categoryOptions, ...fallbacks].slice(0, 3);
-  }, [categoryOptions]);
+    return [...categoryNames, ...fallbacks].slice(0, 3).map(buildFallback);
+  }, [categoryItems, categoryNames]);
 
   const scrollToSection = useCallback((id: string) => {
     const el = document.getElementById(id);
@@ -216,6 +231,25 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [handleSearchChange]);
+
+  useEffect(() => {
+    let isActive = true;
+    const loadCategories = async () => {
+      try {
+        const response = await fetch("/api/categories");
+        const json = await response.json();
+        if (isActive && response.ok && json?.ok) {
+          setCategoryItems(json.data as Category[]);
+        }
+      } catch (error) {
+        console.warn("Failed to load categories", error);
+      }
+    };
+    loadCategories();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -259,6 +293,18 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
     }));
   }, [heroItems, products]);
 
+  const featuredCards = useMemo(() => {
+    return featuredCategories.map((category) => {
+      const featuredProduct = category.featuredProductId
+        ? products.find((product) => product.id === category.featuredProductId)
+        : products.find((product) => product.category === category.name);
+      return {
+        category,
+        image: featuredProduct?.images?.[0] ?? "/file.svg",
+      };
+    });
+  }, [featuredCategories, products]);
+
   useEffect(() => {
     if (filters.category !== "All" && !categories.includes(filters.category)) {
       setFilters((prev) => ({ ...prev, category: "All" }));
@@ -279,71 +325,28 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
     <main className="min-h-screen bg-[color:var(--background)]">
       <HeroCarousel items={heroSlides} />
 
-      <section className="section-tint border-y border-black/5 py-6 sm:py-8">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {[
-              {
-                title: `${SHIPPING_DURATION} Shipping`,
-                body: "Speed-run fulfillment with live order tracking.",
-                icon: (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <path d="M3 12h6l2-9 4 18 2-9h4" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Easy Exchanges",
-                body: "Instant chat support for size swaps and returns.",
-                icon: (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <path d="M21 7H9a4 4 0 1 0 0 8h12" />
-                    <path d="m3 7 3-3m-3 3 3 3m15 7-3 3m3-3-3-3" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Cash on Delivery",
-                body: "Secure checkout with COD on most pincodes.",
-                icon: (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <path d="M12 6v12m-4-3a4 4 0 1 0 8 0c0-2-2-3-4-3s-4-1-4-3a4 4 0 0 1 8 0" />
-                  </svg>
-                ),
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="glass-card rounded-2xl border border-black/10 px-4 py-4 flex items-start gap-3 shadow-sm"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white border border-black/10 text-gray-900">
-                  {item.icon}
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{item.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Featured Collections - 3 Column Grid */}
       <section className="py-10 sm:py-16 section-tint">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {featuredCategories.map((category, index) => (
-              <Link key={category} href="#products" className="group relative aspect-[3/4] overflow-hidden rounded-lg glass-card hover-3d">
+            {featuredCards.map((item) => (
+              <Link
+                key={item.category.id}
+                href="#products"
+                onClick={() => {
+                  setFilters((prev) => ({ ...prev, category: item.category.name }));
+                }}
+                className="group relative aspect-[3/4] overflow-hidden rounded-lg glass-card hover-3d"
+              >
                 <Image
-                  src={FEATURED_IMAGES[index % FEATURED_IMAGES.length]}
-                  alt={category}
+                  src={item.image}
+                  alt={item.category.name}
                   fill
                   sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                   className="object-cover transition duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
-                  <h3 className="font-display text-3xl font-bold text-white">{category}</h3>
+                  <h3 className="font-display text-2xl sm:text-3xl font-bold text-white">{item.category.name}</h3>
                 </div>
               </Link>
             ))}
@@ -389,14 +392,14 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
             </button>
           </div>
           {/* Filters */}
-          <div className="mb-8 space-y-4 frosted-rail px-4 py-3 sm:py-4">
+          <div className="mb-8 space-y-4 frosted-rail px-4 py-3 sm:py-4 rounded-3xl sm:rounded-full">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 hide-scrollbar sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     className={classNames(
-                      "px-4 py-2 rounded-full text-sm font-medium transition border",
+                      "px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition border shrink-0",
                       filters.category === cat
                         ? "bg-[color:var(--primary)] text-white border-transparent"
                         : "btn-outline hover:bg-[color:var(--primary-soft)]"
@@ -407,8 +410,8 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
                   </button>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-2 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Sort</span>
+              <div className="flex items-center gap-2 overflow-x-auto rounded-3xl sm:rounded-full border border-black/10 bg-white/70 px-3 py-2 shadow-sm hide-scrollbar sm:flex-wrap sm:overflow-visible">
+                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 shrink-0">Sort</span>
                 {[
                   { key: "featured", label: "Featured" },
                   { key: "price-asc", label: "Price ↑" },
@@ -419,7 +422,7 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
                   <button
                     key={option.key}
                     className={classNames(
-                      "px-3 py-1.5 rounded-full text-xs font-semibold transition border",
+                      "px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition border shrink-0",
                       sortKey === (option.key as SortKey)
                         ? "bg-gray-900 text-white border-transparent"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"

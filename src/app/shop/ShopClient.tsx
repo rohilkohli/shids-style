@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency } from "../lib/utils";
-import type { Product } from "../lib/types";
+import type { Category, Product } from "../lib/types";
 import CartDrawer from "../components/CartDrawer";
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "name";
@@ -96,6 +96,7 @@ export default function ShopClient() {
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOption>("featured");
   const [showCart, setShowCart] = useState(false);
+  const [categoryItems, setCategoryItems] = useState<Category[]>([]);
   const isClient = useSyncExternalStore(
     () => () => undefined,
     () => true,
@@ -104,14 +105,42 @@ export default function ShopClient() {
 
   const resolvedSearch = search ?? (searchParams.get("search") ?? "");
 
-  const categories = useMemo(() => ["All", ...Array.from(new Set(products.map((p) => p.category)))], [products]);
+  useEffect(() => {
+    let isActive = true;
+    const loadCategories = async () => {
+      try {
+        const response = await fetch("/api/categories");
+        const json = await response.json();
+        if (isActive && response.ok && json?.ok) {
+          setCategoryItems(json.data as Category[]);
+        }
+      } catch (error) {
+        console.warn("Failed to load categories", error);
+      }
+    };
+    loadCategories();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const categoryNames = useMemo(() => {
+    if (categoryItems.length) return categoryItems.map((item) => item.name).filter(Boolean);
+    return Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
+  }, [categoryItems, products]);
+
+  const categories = useMemo(() => ["All", ...categoryNames], [categoryNames]);
+  const safeCategory = useMemo(
+    () => (category !== "All" && !categories.includes(category) ? "All" : category),
+    [category, categories]
+  );
 
   const filteredProducts = useMemo(() => {
     let list = products.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
         product.tags.some((tag) => tag.toLowerCase().includes(resolvedSearch.toLowerCase()));
-      const matchesCategory = category === "All" || product.category === category;
+      const matchesCategory = safeCategory === "All" || product.category === safeCategory;
       return matchesSearch && matchesCategory;
     });
 
@@ -124,7 +153,7 @@ export default function ShopClient() {
     }
 
     return list;
-  }, [products, resolvedSearch, category, sort]);
+  }, [products, resolvedSearch, safeCategory, sort]);
 
   if (!isClient || !ready) {
     return <main className="min-h-screen bg-[color:var(--background)]" />;
@@ -149,7 +178,7 @@ export default function ShopClient() {
                 onChange={(e) => setSearch(e.target.value)}
               />
               <select
-                value={category}
+                value={safeCategory}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full sm:w-48 px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:border-gray-400 bg-white focus-visible:ring-2 focus-visible:ring-black/10"
               >

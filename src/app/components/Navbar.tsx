@@ -71,14 +71,17 @@ export default function Navbar() {
                   />
                 </span>
               </button>
-              <Link href="/" className="flex items-center h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">
+              <Link
+                href="/"
+                className="flex items-center h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded"
+              >
                 <Image
                   src="/shids.svg"
                   alt="Shids Style"
                   width={250}
                   height={31}
                   priority
-                  className="h-10 sm:h-12 w-auto max-w-[220px] object-contain block"
+                  className="h-9 sm:h-12 w-auto max-w-[160px] sm:max-w-[220px] object-contain block"
                 />
               </Link>
             </div>
@@ -105,7 +108,13 @@ export default function Navbar() {
                 ref={searchWrapperRef}
               >
                 <span className="text-gray-600 flex-shrink-0">
-                  <Image src="/search-interface-symbol.png" alt="Search" width={20} height={20} className="h-5 w-5 icon-dark opacity-100" />
+                  <Image
+                    src="/search-interface-symbol.png"
+                    alt="Search"
+                    width={20}
+                    height={20}
+                    className="h-5 w-5 icon-dark opacity-100"
+                  />
                 </span>
                 <input
                   ref={searchInputRef}
@@ -195,8 +204,9 @@ export default function Navbar() {
               {[
                 { href: "/", label: "Home" },
                 { href: "/shop", label: "Shop" },
+                { href: "/track", label: "Track Order" },
                 { href: "/contact", label: "Contact" },
-                { href: "/about", label: "About" },
+                { href: "/about", label: "About Us" },
                 { href: "/wishlist", label: "Wishlist", icon: "heart" },
                 { href: "/recently-viewed", label: "Recently Viewed", icon: "clock" },
                 { href: "/returns-policy", label: "Returns Policy" },

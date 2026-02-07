@@ -32,7 +32,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
   const safeIndex = slides.length ? activeIndex % slides.length : 0;
   return (
     <section
-      className="relative h-[420px] sm:h-[620px] lg:h-[700px] bg-gray-50 overflow-hidden"
+      className="relative h-[320px] sm:h-[560px] lg:h-[700px] bg-gray-50 overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       role="region"
@@ -62,7 +62,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
 
       <button
         type="button"
-        className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         onClick={(event) => {
           event.preventDefault();
           setActiveIndex((prev) => (prev - 1 + slides.length) % slides.length);
@@ -73,7 +73,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
       </button>
       <button
         type="button"
-        className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-white/80 text-gray-900 flex items-center justify-center shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         onClick={(event) => {
           event.preventDefault();
           setActiveIndex((prev) => (prev + 1) % slides.length);

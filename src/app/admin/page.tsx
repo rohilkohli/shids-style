@@ -146,6 +146,7 @@ export default function AdminPage() {
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [categoryItems, setCategoryItems] = useState<Category[]>([]);
+  const [categoryFeaturedDrafts, setCategoryFeaturedDrafts] = useState<Record<number, string>>({});
   const [categoryName, setCategoryName] = useState("");
   const [categorySaving, setCategorySaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -247,7 +248,14 @@ export default function AdminPage() {
       const response = await fetch("/api/categories");
       const json = await response.json();
       if (response.ok && json?.ok) {
-        setCategoryItems(json.data as Category[]);
+        const items = json.data as Category[];
+        setCategoryItems(items);
+        setCategoryFeaturedDrafts(
+          items.reduce<Record<number, string>>((acc, item) => {
+            acc[item.id] = item.featuredProductId ?? "";
+            return acc;
+          }, {})
+        );
       }
     } catch (error) {
       console.warn("Failed to load categories", error);
@@ -938,6 +946,31 @@ export default function AdminPage() {
     }
   };
 
+  const handleSaveCategoryFeatured = async (categoryId: number) => {
+    const featuredProductId = categoryFeaturedDrafts[categoryId] || "";
+    try {
+      const response = await fetch("/api/categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: categoryId,
+          featuredProductId: featuredProductId || null,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || "Failed to update category.");
+      }
+      setCategoryItems((prev) =>
+        prev.map((item) => (item.id === categoryId ? (json.data as Category) : item))
+      );
+      setFlash("Category updated.");
+      setTimeout(() => setFlash(null), 1600);
+    } catch (error) {
+      setFlash((error as Error).message);
+    }
+  };
+
 
   const handleOrderStatusUpdate = async (
     orderId: string,
@@ -1515,13 +1548,14 @@ export default function AdminPage() {
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Featured Product</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {categoryItems.length === 0 && (
                           <tr>
-                            <td colSpan={3} className="px-6 py-6 text-center text-sm text-gray-500">
+                            <td colSpan={4} className="px-6 py-6 text-center text-sm text-gray-500">
                               No categories yet.
                             </td>
                           </tr>
@@ -1530,6 +1564,37 @@ export default function AdminPage() {
                           <tr key={category.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 text-sm font-medium text-gray-900">{category.name}</td>
                             <td className="px-6 py-4 text-xs text-gray-500">{category.slug}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <div className="flex flex-col gap-2">
+                                <select
+                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 focus:border-indigo-500 focus:outline-none"
+                                  value={categoryFeaturedDrafts[category.id] ?? ""}
+                                  onChange={(event) =>
+                                    setCategoryFeaturedDrafts((prev) => ({
+                                      ...prev,
+                                      [category.id]: event.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value="">No featured product</option>
+                                  {(products.filter((product) => product.category === category.name).length
+                                    ? products.filter((product) => product.category === category.name)
+                                    : products
+                                  ).map((product) => (
+                                    <option key={product.id} value={product.id}>
+                                      {product.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveCategoryFeatured(category.id)}
+                                  className="w-fit rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-6 py-4 text-sm">
                               <button
                                 type="button"

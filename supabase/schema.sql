@@ -36,6 +36,7 @@ create table if not exists public.categories (
   id bigserial primary key,
   name text unique not null,
   slug text unique not null,
+  featured_product_id text references public.products(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -417,6 +418,9 @@ alter table public.orders
   add column if not exists discount_code text,
   add column if not exists discount_amount numeric;
 
+alter table public.categories
+  add column if not exists featured_product_id text references public.products(id) on delete set null;
+
 alter table public.profiles
   add column if not exists address_line1 text,
   add column if not exists address_line2 text,
@@ -424,9 +428,6 @@ alter table public.profiles
   add column if not exists state text,
   add column if not exists postal_code text,
   add column if not exists country text;
-
--- Refresh PostgREST schema cache after migrations.
-select pg_notify('pgrst', 'reload schema');
 
 -- ==========================================
 -- 5. DATABASE FUNCTIONS
