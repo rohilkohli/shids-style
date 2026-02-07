@@ -116,14 +116,14 @@ export async function GET(request: NextRequest) {
       items: (row.items ?? []).map((item) => ({
         productId: item.product_id,
         quantity: item.quantity,
-        color: item.color,
-        size: item.size,
+        color: item.color ?? undefined,
+        size: item.size ?? undefined,
         price: Number(item.price ?? 0)
       })),
-      notes: row.notes,
-      awbNumber: row.awb_number,
-      paymentVerified: row.payment_verified,
-      courierName: row.courier_name
+      notes: row.notes ?? undefined,
+      awbNumber: row.awb_number ?? undefined,
+      paymentVerified: row.payment_verified ?? undefined,
+      courierName: row.courier_name ?? undefined
     }));
 
     return NextResponse.json({ ok: true, data: mappedOrders });

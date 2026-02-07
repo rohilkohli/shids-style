@@ -2432,92 +2432,103 @@ export default function AdminPage() {
                       onChange={(event) => setProductForm((prev) => ({ ...prev, badge: event.target.value }))}
                     />
                   </label>
+                </div>
               )}
 
               {productStep === 3 && (
                 <div className="space-y-4">
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                        <span className="font-semibold text-gray-700">Formatting:</span>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("bold")}
-                        >
-                          Bold
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("italic")}
-                        >
-                          Italic
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("insertUnorderedList")}
-                        >
-                          Bullets
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("insertOrderedList")}
-                        >
-                          Numbered
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => {
-                            const url = window.prompt("Enter a URL");
-                            if (url) applyDescriptionCommand("createLink", url);
-                          }}
-                        >
-                          Link
-                        </button>
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Images</p>
+                        <p className="text-xs text-gray-500">
+                          {imageList.length} image(s) attached
+                        </p>
                       </div>
-                      <div
-                        ref={descriptionEditorRef}
-                        className="mt-2 min-h-[140px] w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none"
-                        contentEditable
-                        suppressContentEditableWarning
-                        onInput={(event) =>
-                          setProductForm((prev) => ({
-                            ...prev,
-                            description: event.currentTarget?.innerHTML ?? "",
-                          }))
-                        }
-                        onBlur={(event) => {
-                          const html = event.currentTarget?.innerHTML ?? "";
-                          const sanitized = renderDescriptionHtml(html);
-                          setProductForm((prev) => ({ ...prev, description: sanitized }));
-                          if (event.currentTarget) {
-                            event.currentTarget.innerHTML = sanitized;
-                          }
-                        }}
-                      />
-                      <p className="mt-2 text-xs text-gray-500">
-                        Use the toolbar to format text. Formatting is saved with the product.
-                      </p>
-                      />
-                      <button
-                        type="button"
-                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
-                        disabled={!imageLinkInput.trim()}
-                        onClick={() => {
-                          if (!imageLinkInput.trim()) return;
-                          setProductForm((prev) => {
-                            const existing = prev.images ? `${prev.images.trim()}\n` : "";
-                            return { ...prev, images: `${existing}${imageLinkInput.trim()}` };
-                          });
-                          setImageLinkInput("");
-                        }}
-                      >
-                        Add image URL
-                      </button>
                     </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Upload images below. URLs are generated automatically and stored with the product.
+                    </p>
+                  </div>
+
+                  <label className="text-sm font-medium text-gray-700">
+                    Upload Images
+                    <div
+                      className={`mt-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center text-sm transition ${
+                        dragActive
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-gray-200 bg-white hover:border-indigo-300"
+                      } ${uploadingImages ? "opacity-70 cursor-not-allowed" : ""}`}
+                      aria-busy={uploadingImages}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragActive(true);
+                      }}
+                      onDragLeave={() => setDragActive(false)}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setDragActive(false);
+                        if (event.dataTransfer?.files?.length) {
+                          handleImageUpload(event.dataTransfer.files);
+                        }
+                      }}
+                      onPaste={(event) => {
+                        if (event.clipboardData?.files?.length) {
+                          handleImageUpload(event.clipboardData.files);
+                        }
+                      }}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        id="product-image-upload"
+                        onChange={(event) => handleImageUpload(event.target.files)}
+                        disabled={uploadingImages}
+                      />
+                      <label
+                        htmlFor="product-image-upload"
+                        className={`cursor-pointer ${uploadingImages ? "pointer-events-none" : ""}`}
+                      >
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                          ⬆️
+                        </div>
+                        <p className="mt-3 font-semibold text-gray-700">Click to upload or drag & drop</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {uploadingImages ? "Uploading and resizing images..." : "You can also paste images here."}
+                        </p>
+                      </label>
+                    </div>
+                    <span className="mt-2 block text-xs text-gray-500">
+                      Images are uploaded to Supabase Storage and saved as public URLs. For best performance, use optimized image files.
+                    </span>
                   </label>
+
+                  <div className="mt-3 flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-center">
+                    <input
+                      type="url"
+                      placeholder="Paste image URL and click add"
+                      value={imageLinkInput}
+                      onChange={(event) => setImageLinkInput(event.target.value)}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                      disabled={!imageLinkInput.trim()}
+                      onClick={() => {
+                        if (!imageLinkInput.trim()) return;
+                        setProductForm((prev) => {
+                          const existing = prev.images ? `${prev.images.trim()}\n` : "";
+                          return { ...prev, images: `${existing}${imageLinkInput.trim()}` };
+                        });
+                        setImageLinkInput("");
+                      }}
+                    >
+                      Add image URL
+                    </button>
+                  </div>
 
                   {previewImages.length > 0 && (
                     <div className="rounded-xl border border-gray-200 p-4">
