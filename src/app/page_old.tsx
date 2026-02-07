@@ -1,12 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "./lib/store";
 import { classNames, formatCurrency } from "./lib/utils";
 import type { Product } from "./lib/types";
 
-const categories = ["All", "Oversized Tees", "Summer Dresses", "Cargo & Denims", "Knitwear", "Accessories"];
 
 type FilterState = {
   search: string;
@@ -30,7 +30,6 @@ function ProductCard({
   onAdd: (product: Product) => void;
 }) {
   const { sale, compareAt } = getProductPrice(product);
-  const lowStock = product.stock > 0 && product.stock <= 5;
 
   return (
     <div className="group relative bg-white rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300">
@@ -47,11 +46,13 @@ function ProductCard({
       </div>
 
       <Link href={`/products/${product.slug}`}>
-        <div className="aspect-[3/4] overflow-hidden bg-gray-50">
-          <img
+        <div className="aspect-[3/4] overflow-hidden bg-gray-50 relative">
+          <Image
             src={product.images[0]}
             alt={product.name}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            fill
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
           />
         </div>
       </Link>
@@ -103,6 +104,10 @@ export default function Home() {
   const [coupon, setCoupon] = useState("");
   const [checkoutForm, setCheckoutForm] = useState({ email: "", address: "" });
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
+  const categories = useMemo(() => {
+    const names = products.map((product) => product.category).filter(Boolean);
+    return ["All", ...Array.from(new Set(names))];
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -227,11 +232,13 @@ export default function Home() {
                 </Link>
               </div>
             </div>
-            <div className="relative mt-6 overflow-hidden rounded-2xl border-2 border-pink-200 shadow-lg">
-              <img
+            <div className="relative mt-6 h-56 overflow-hidden rounded-2xl border-2 border-pink-200 shadow-lg">
+              <Image
                 src={products[0].images[0]}
                 alt="Aero Loft Puffer"
-                className="h-56 w-full object-cover"
+                fill
+                sizes="(min-width: 1024px) 40vw, 100vw"
+                className="object-cover"
               />
             </div>
           </div>
@@ -299,7 +306,7 @@ export default function Home() {
                   const { sale } = getProductPrice(product);
                   return (
                   <div key={product.id} className="flex items-center gap-4 rounded-2xl border-2 border-pink-100 bg-gradient-to-r from-white to-pink-50 p-4 shadow-sm hover:shadow-md transition">
-                    <img src={product.images[0]} alt={product.name} className="h-16 w-16 rounded-xl object-cover border-2 border-pink-200 shadow-sm" />
+                    <Image src={product.images[0]} alt={product.name} width={64} height={64} className="h-16 w-16 rounded-xl object-cover border-2 border-pink-200 shadow-sm" />
                     <div className="flex-1">
                       <p className="font-bold text-gray-800">{product.name}</p>
                       <p className="text-sm text-gray-500">{product.category}</p>
@@ -350,7 +357,7 @@ export default function Home() {
                   const variantKey = `${item.productId}-${item.color ?? "any"}-${item.size ?? "any"}`;
                   return (
                   <div key={variantKey} className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-purple-100 bg-gradient-to-r from-white to-purple-50 p-4 shadow-sm hover:shadow-md transition">
-                    <img src={product.images[0]} alt={product.name} className="h-16 w-16 rounded-xl object-cover border-2 border-purple-200 shadow-sm" />
+                    <Image src={product.images[0]} alt={product.name} width={64} height={64} className="h-16 w-16 rounded-xl object-cover border-2 border-purple-200 shadow-sm" />
                     <div className="flex-1 min-w-[160px]">
                       <p className="font-bold text-gray-800">{product.name}</p>
                       <p className="text-xs text-gray-500">{item.size ?? "Flexible fit"} • {item.color ?? "Any"}</p>

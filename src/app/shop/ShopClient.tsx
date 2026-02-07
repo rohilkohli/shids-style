@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency } from "../lib/utils";
@@ -82,18 +82,29 @@ function ProductCard({
 
 export default function ShopClient() {
   const searchParams = useSearchParams();
-  const { products, wishlist, addToCart, toggleWishlist } = useCommerceStore();
+  const {
+    products,
+    wishlist,
+    addToCart,
+    toggleWishlist,
+    loadMoreProducts,
+    productsHasMore,
+    productsLoading,
+    ready,
+  } = useCommerceStore();
   const [search, setSearch] = useState<string | null>(null);
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOption>("featured");
   const [showCart, setShowCart] = useState(false);
+  const isClient = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
 
   const resolvedSearch = search ?? (searchParams.get("search") ?? "");
 
-  const categories = useMemo(
-    () => ["All", ...Array.from(new Set(products.map((p) => p.category)))],
-    [products]
-  );
+  const categories = useMemo(() => ["All", ...Array.from(new Set(products.map((p) => p.category)))], [products]);
 
   const filteredProducts = useMemo(() => {
     let list = products.filter((product) => {
@@ -114,6 +125,10 @@ export default function ShopClient() {
 
     return list;
   }, [products, resolvedSearch, category, sort]);
+
+  if (!isClient || !ready) {
+    return <main className="min-h-screen bg-[color:var(--background)]" />;
+  }
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
@@ -176,6 +191,19 @@ export default function ShopClient() {
               />
             ))}
           </div>
+
+          {productsHasMore && (
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={loadMoreProducts}
+                disabled={productsLoading}
+                className="rounded-full border border-gray-300 bg-white px-6 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
+              >
+                {productsLoading ? "Loading more..." : "Load more"}
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

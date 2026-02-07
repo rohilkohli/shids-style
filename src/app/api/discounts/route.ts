@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import type { DiscountCode } from "@/app/lib/types";
 
 export const revalidate = 60;
@@ -30,9 +31,40 @@ const mapDiscountRow = (row: DiscountRow): DiscountCode => ({
   createdAt: row.created_at,
 });
 
+async function isAdmin(request: NextRequest) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    let resolvedUser = user;
+
+    if (!resolvedUser) {
+      const authHeader = request.headers.get("Authorization");
+      if (authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        const { data } = await supabaseAdmin.auth.getUser(token);
+        resolvedUser = data.user ?? null;
+      }
+    }
+
+    if (!resolvedUser) return false;
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", resolvedUser.id)
+      .single();
+    return profile?.role === "admin";
+  } catch (error) {
+    console.error("Admin check failed", error);
+    return false;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const active = searchParams.get("active");
+  if (active !== "true" && !await isAdmin(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
   let query = supabaseAdmin.from("discount_codes").select("*").order("created_at", { ascending: false });
   if (active === "true") {
     query = query.eq("is_active", true);
@@ -45,6 +77,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await isAdmin(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await request.json()) as Partial<DiscountCode>;
 
   const code = body.code?.trim().toUpperCase();

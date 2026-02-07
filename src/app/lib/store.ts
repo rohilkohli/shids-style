@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultOrders, defaultProducts } from "./data";
 import { CartItem, Order, OrderStatus, Product, DiscountCode, User } from "./types";
 import { formatCurrency, slugify } from "./utils";
-import { supabase } from "./supabaseClient";
+import { supabase } from "./supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 const STORAGE_KEY = "shids-style/state/v1";
+const PRODUCTS_PAGE_SIZE = 12;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -25,11 +27,18 @@ export type CreateOrderPayload = {
   email: string;
   address: string;
   notes?: string;
-  paymentProof?: string;
   shippingFee?: number;
+  discountCode?: string;
 };
 
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
+
+type ProductPageResponse = {
+  data: Product[];
+  count: number;
+  page: number;
+  limit: number;
+};
 
 type PersistedState = {
   products: Product[];
@@ -44,6 +53,7 @@ type PersistedState = {
 export function useCommerceStore() {
   const instanceIdRef = useRef<string | null>(null);
   const suppressBroadcastRef = useRef(false);
+  const sessionTokenRef = useRef<string | null>(null);
   const storedState = useMemo<Partial<PersistedState> | null>(() => {
     if (typeof window === "undefined") return null;
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -60,6 +70,10 @@ export function useCommerceStore() {
   const [products, setProducts] = useState<Product[]>(
     storedState?.products?.length ? storedState.products : defaultProducts
   );
+  const [productsPage, setProductsPage] = useState(1);
+  const [productsTotal, setProductsTotal] = useState(storedState?.products?.length ?? 0);
+  const [productsHasMore, setProductsHasMore] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [orders, setOrders] = useState<Order[]>(
     storedState?.orders?.length ? storedState.orders : defaultOrders
   );
@@ -74,24 +88,29 @@ export function useCommerceStore() {
     setReady(true);
   }, []);
 
+  const safeGetSession = useCallback(async () => {
+    try {
+      return await supabase.auth.getSession();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return { data: { session: null }, error: null };
+      }
+      return { data: { session: null }, error: error as Error };
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     const ensureSession = async () => {
-      try {
-        const { error } = await supabase.auth.getSession();
-        if (error && active) {
-          if (error.message.includes("Invalid Refresh Token")) {
-            await supabase.auth.signOut({ scope: "local" });
-            if (typeof window !== "undefined") {
-              Object.keys(window.localStorage)
-                .filter((key) => key.startsWith("sb-") && key.endsWith("-auth-token"))
-                .forEach((key) => window.localStorage.removeItem(key));
-            }
-            setUser(null);
+      const { error } = await safeGetSession();
+      if (error && active) {
+        if (error.message.includes("Invalid Refresh Token")) {
+          await supabase.auth.signOut({ scope: "local" });
+          if (typeof window !== "undefined") {
+            Object.keys(window.localStorage)
+              .filter((key) => key.startsWith("sb-") && key.endsWith("-auth-token"))
+              .forEach((key) => window.localStorage.removeItem(key));
           }
-        }
-      } catch {
-        if (active) {
           setUser(null);
         }
       }
@@ -102,7 +121,7 @@ export function useCommerceStore() {
     return () => {
       active = false;
     };
-  }, [ready]);
+  }, [ready, safeGetSession]);
 
   useEffect(() => {
     if (!instanceIdRef.current) {
@@ -110,11 +129,15 @@ export function useCommerceStore() {
     }
   }, []);
 
+  // --- SECURITY KEY LOGIC ---
   const apiRequest = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
+    const token = sessionTokenRef.current;
+
     const response = await fetch(url, {
       ...init,
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers ?? {}),
       },
     });
@@ -159,14 +182,12 @@ export function useCommerceStore() {
     );
   }, [products, orders, cart, wishlist, discountCodes, user, recentlyViewed, ready]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!ready) return;
     const productIds = new Set(products.map((product) => product.id));
     setCart((prev) => prev.filter((item) => productIds.has(item.productId)));
     setWishlist((prev) => prev.filter((id) => productIds.has(id)));
   }, [products, ready]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const mapSupabaseUser = (sbUser: {
     id: string;
@@ -191,7 +212,7 @@ export function useCommerceStore() {
     async (email: string) => {
       try {
         return await apiRequest<User>(`/api/users/${encodeURIComponent(email)}`);
-      } catch (error) {
+      } catch {
         return null;
       }
     },
@@ -203,45 +224,58 @@ export function useCommerceStore() {
     let cancelled = false;
     const syncFromApi = async () => {
       try {
-        const [nextProducts, nextOrders, nextDiscounts] = await Promise.all([
-          apiRequest<Product[]>("/api/products"),
+        setProductsLoading(true);
+        const discountsUrl = user?.role === "admin" ? "/api/discounts" : "/api/discounts?active=true";
+        const [nextProductsPage, nextOrders, nextDiscounts] = await Promise.all([
+          apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`),
           apiRequest<Order[]>("/api/orders"),
-          apiRequest<DiscountCode[]>("/api/discounts"),
+          apiRequest<DiscountCode[]>(discountsUrl),
         ]);
         if (cancelled) return;
-        setProducts(nextProducts);
+        setProducts(nextProductsPage.data);
+        setProductsPage(nextProductsPage.page);
+        setProductsTotal(nextProductsPage.count);
+        setProductsHasMore(nextProductsPage.data.length < nextProductsPage.count);
         setOrders(nextOrders);
         setDiscountCodes(nextDiscounts);
       } catch (error) {
         console.warn("Backend sync failed", error);
+      } finally {
+        if (!cancelled) {
+          setProductsLoading(false);
+        }
       }
     };
     syncFromApi();
     return () => {
       cancelled = true;
     };
-  }, [apiRequest, ready]);
+  }, [apiRequest, ready, user?.role]);
 
   useEffect(() => {
     if (!ready) return;
-    supabase.auth.getSession().then(async ({ data }) => {
+    safeGetSession().then(async ({ data }) => {
+      sessionTokenRef.current = data.session?.access_token ?? null;
       if (data.session?.user?.email) {
         const profile = await fetchProfile(data.session.user.email);
         setUser(profile ?? mapSupabaseUser(data.session.user));
       }
     });
-    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      async (_event: AuthChangeEvent, session: Session | null) => {
+      sessionTokenRef.current = session?.access_token ?? null;
       if (session?.user?.email) {
         const profile = await fetchProfile(session.user.email);
         setUser(profile ?? mapSupabaseUser(session.user));
       } else {
         setUser(null);
       }
-    });
+    }
+    );
     return () => {
       subscription?.subscription?.unsubscribe();
     };
-  }, [ready, fetchProfile]);
+  }, [ready, fetchProfile, safeGetSession]);
 
   const addRecentlyViewed = useCallback((productId: string) => {
     setRecentlyViewed((prev: string[]) => {
@@ -257,7 +291,6 @@ export function useCommerceStore() {
     if (error || !data.user) {
       throw new Error(error?.message || "Invalid credentials.");
     }
-
     const profile = await fetchProfile(email);
     const nextUser = profile ?? mapSupabaseUser(data.user);
     setUser(nextUser);
@@ -341,32 +374,49 @@ export function useCommerceStore() {
       }),
     });
     setProducts((prev: Product[]) => [product, ...prev]);
+    setProductsTotal((prev) => prev + 1);
+    setProductsHasMore((prev) => prev || products.length + 1 < productsTotal + 1);
     return product;
   };
 
   const deleteProduct = async (productId: string) => {
     await apiRequest<{ ok: true }>(`/api/products/${productId}`, { method: "DELETE" });
     setProducts((prev: Product[]) => prev.filter((product: Product) => product.id !== productId));
+    setProductsTotal((prev) => Math.max(prev - 1, 0));
   };
 
+  // --- [FIXED] VARIANT AWARE CART LOGIC START ---
   const addToCart = (item: CartItem) => {
     setCart((prev: CartItem[]) => {
       const product = products.find((p: Product) => p.id === item.productId);
-      if (!product || product.stock <= 0) return prev;
+      if (!product) return prev;
+
+      // [NEW] Determine Limit: Check Specific Variant Stock First
+      let limit = product.stock;
+      if (item.variantId && product.variants) {
+        const variant = product.variants.find(v => v.id === item.variantId);
+        if (variant) limit = variant.stock;
+      } else if (item.size && item.color && product.variants) {
+        const variant = product.variants.find(v => v.size === item.size && v.color === item.color);
+        if (variant) limit = variant.stock;
+      }
+
+      if (limit <= 0) return prev;
 
       const key = getVariantKey(item);
       const next = [...prev];
       const existingIndex = next.findIndex((entry) => getVariantKey(entry) === key);
       const existing = existingIndex >= 0 ? next[existingIndex] : null;
+      
       const currentQty = existing?.quantity ?? 0;
-      const desiredQty = clamp(currentQty + item.quantity, 1, product.stock);
+      const desiredQty = clamp(currentQty + item.quantity, 1, limit);
 
       if (existing) {
         next[existingIndex] = { ...existing, quantity: desiredQty };
         return next;
       }
 
-      next.push({ ...item, quantity: clamp(item.quantity, 1, product.stock) });
+      next.push({ ...item, quantity: clamp(item.quantity, 1, limit) });
       return next;
     });
   };
@@ -374,7 +424,18 @@ export function useCommerceStore() {
   const updateCartQuantity = (item: CartItem, quantity: number) => {
     setCart((prev: CartItem[]) => {
       const product = products.find((p: Product) => p.id === item.productId);
-      const limit = product ? product.stock : quantity;
+      if (!product) return prev;
+
+      // [NEW] Determine Limit: Check Specific Variant Stock First
+      let limit = product.stock;
+      if (item.variantId && product.variants) {
+        const variant = product.variants.find(v => v.id === item.variantId);
+        if (variant) limit = variant.stock;
+      } else if (item.size && item.color && product.variants) {
+        const variant = product.variants.find(v => v.size === item.size && v.color === item.color);
+        if (variant) limit = variant.stock;
+      }
+
       return prev
         .map((entry: CartItem) => {
           if (getVariantKey(entry) !== getVariantKey(item)) return entry;
@@ -383,6 +444,7 @@ export function useCommerceStore() {
         .filter((entry: CartItem) => entry.quantity > 0);
     });
   };
+  // --- [FIXED] VARIANT AWARE CART LOGIC END ---
 
   const removeFromCart = (item: CartItem) => {
     setCart((prev: CartItem[]) => prev.filter((entry: CartItem) => getVariantKey(entry) !== getVariantKey(item)));
@@ -390,10 +452,19 @@ export function useCommerceStore() {
 
   const clearCart = () => setCart([]);
 
-  const updateOrderStatus = async (orderId: string, status: OrderStatus, awbNumber?: string) => {
+  const updateOrderStatus = async (
+    orderId: string,
+    status: OrderStatus,
+    awbNumber?: string,
+    courierName?: string
+  ) => {
     const updated = await apiRequest<Order>(`/api/orders/${orderId}`, {
       method: "PATCH",
-      body: JSON.stringify({ status, awbNumber: awbNumber ?? null }),
+      body: JSON.stringify({
+        status,
+        awbNumber: awbNumber ?? null,
+        courierName: courierName ?? null,
+      }),
     });
     setOrders((prev: Order[]) => prev.map((order: Order) => (order.id === orderId ? updated : order)));
     return updated;
@@ -412,10 +483,18 @@ export function useCommerceStore() {
   const createOrder = async (payload: CreateOrderPayload) => {
     if (!cart.length) return null;
 
+    // [NEW] Normalize cart with correct limits
     const normalizedCart = cart.map((item: CartItem) => {
       const product = products.find((p: Product) => p.id === item.productId);
       if (!product) return item;
-      return { ...item, quantity: clamp(item.quantity, 1, product.stock) };
+      
+      let limit = product.stock;
+      if (item.variantId && product.variants) {
+        const variant = product.variants.find(v => v.id === item.variantId);
+        if (variant) limit = variant.stock;
+      }
+
+      return { ...item, quantity: clamp(item.quantity, 1, limit) };
     });
 
     const created = await apiRequest<Order>("/api/orders", {
@@ -424,8 +503,8 @@ export function useCommerceStore() {
         email: payload.email,
         address: payload.address,
         notes: payload.notes,
-        paymentProof: payload.paymentProof,
         shippingFee: payload.shippingFee,
+        discountCode: payload.discountCode,
         items: normalizedCart,
       }),
     });
@@ -433,13 +512,39 @@ export function useCommerceStore() {
     setOrders((prev: Order[]) => [...prev, created]);
     setCart([]);
     try {
-      const refreshed = await apiRequest<Product[]>("/api/products");
-      setProducts(refreshed);
+      const refreshed = await apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`);
+      setProducts(refreshed.data);
+      setProductsPage(refreshed.page);
+      setProductsTotal(refreshed.count);
+      setProductsHasMore(refreshed.data.length < refreshed.count);
     } catch (error) {
       console.warn("Failed to refresh products after order", error);
     }
     return created;
   };
+
+  const loadMoreProducts = useCallback(async () => {
+    if (productsLoading || !productsHasMore) return;
+    const nextPage = productsPage + 1;
+    setProductsLoading(true);
+    try {
+      const nextPageData = await apiRequest<ProductPageResponse>(
+        `/api/products?page=${nextPage}&limit=${PRODUCTS_PAGE_SIZE}`
+      );
+      setProducts((prev) => {
+        const existing = new Set(prev.map((product) => product.id));
+        const merged = [...prev, ...nextPageData.data.filter((product) => !existing.has(product.id))];
+        setProductsHasMore(merged.length < nextPageData.count);
+        return merged;
+      });
+      setProductsPage(nextPageData.page);
+      setProductsTotal(nextPageData.count);
+    } catch (error) {
+      console.warn("Failed to load more products", error);
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [apiRequest, productsHasMore, productsLoading, productsPage]);
 
   const getProductBySlug = (slug: string) => products.find((product: Product) => product.slug === slug);
 
@@ -456,7 +561,10 @@ export function useCommerceStore() {
   const verifyPayment = async (orderId: string, verified = true) => {
     const updated = await apiRequest<Order>(`/api/orders/${orderId}`, {
       method: "PATCH",
-      body: JSON.stringify({ paymentVerified: verified }),
+      body: JSON.stringify({
+        paymentVerified: verified,
+        status: verified ? "paid" : undefined,
+      }),
     });
     setOrders((prev: Order[]) => prev.map((order: Order) => (order.id === orderId ? updated : order)));
     return updated;
@@ -550,5 +658,9 @@ export function useCommerceStore() {
     deleteDiscountCode,
     toggleDiscountCodeActive,
     getProductBySlug,
+    loadMoreProducts,
+    productsHasMore,
+    productsLoading,
+    productsTotal,
   };
 }

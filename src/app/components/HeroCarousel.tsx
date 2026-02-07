@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { Product } from "../lib/types";
-import { formatCurrency } from "../lib/utils";
 
 export type HeroItem = {
   id: string | number;
@@ -31,9 +30,6 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
   }
 
   const safeIndex = slides.length ? activeIndex % slides.length : 0;
-  const current = slides[safeIndex];
-  const product = current.product;
-
   return (
     <section
       className="relative h-[420px] sm:h-[620px] lg:h-[700px] bg-gray-50 overflow-hidden"
@@ -42,44 +38,27 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
       role="region"
       aria-label="Hero carousel"
     >
-      <Link href={`/products/${product.slug}`} className="absolute inset-0">
-        <Image
-          src={product.images?.[0] ?? "/file.svg"}
-          alt={product.name}
-          fill
-          priority
-          sizes="100vw"
-          quality={85}
-          className="absolute inset-0 object-cover object-center transition duration-700"
-        />
-      </Link>
-      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
-
-      <div className="absolute inset-0 flex items-end">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-10 sm:pb-14 lg:pb-16 w-full">
-          <div className="flex flex-col gap-4 sm:gap-5 items-center text-center text-white">
-            <span className="text-xs uppercase tracking-[0.35em] text-white/80">Hero Pick</span>
-            <h2 className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold">{product.name}</h2>
-            <p className="text-sm sm:text-base text-white/80 max-w-2xl">
-              {product.description}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href={`/products/${product.slug}`}
-                className="rounded-full bg-white/95 text-gray-900 px-6 sm:px-8 py-3.5 text-sm sm:text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                View Product · {formatCurrency(product.price)}
-              </Link>
-              <Link
-                href="/shop"
-                className="rounded-full border border-white/70 px-6 sm:px-8 py-3.5 text-sm sm:text-base font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                Shop Collection
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
+      {slides.map((slide, index) => (
+        <Link
+          key={slide.id}
+          href={`/products/${slide.product.slug}`}
+          className={`absolute inset-0 transition-opacity duration-700 ${
+            index === safeIndex ? "opacity-100" : "opacity-0"
+          }`}
+          aria-hidden={index !== safeIndex}
+        >
+          <Image
+            src={slide.product.images?.[0] ?? "/file.svg"}
+            alt={slide.product.name}
+            fill
+            priority={index === safeIndex}
+            sizes="100vw"
+            quality={85}
+            className="absolute inset-0 object-cover object-[center_top] sm:object-center"
+          />
+        </Link>
+      ))}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent pointer-events-none" />
 
       <button
         type="button"

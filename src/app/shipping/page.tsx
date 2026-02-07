@@ -10,7 +10,7 @@ import CartDrawer from "../components/CartDrawer";
 
 export default function ShippingPage() {
   const router = useRouter();
-  const { cart, products, user } = useCommerceStore();
+  const { cart, products, user, discountCodes, updateUser } = useCommerceStore();
   const [form, setForm] = useState<{
     fullName: string | null;
     email: string | null;
@@ -50,12 +50,36 @@ export default function ShippingPage() {
   });
   const [message, setMessage] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
+  const readStoredDiscount = () => {
+    if (typeof window === "undefined") return null;
+    const stored = window.localStorage.getItem("shids-style/discount");
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored) as { code: string; type: "percentage" | "fixed"; value: number };
+    } catch {
+      return null;
+    }
+  };
+
+  const [discountInput, setDiscountInput] = useState(() => readStoredDiscount()?.code ?? "");
+  const [discountMessage, setDiscountMessage] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    type: "percentage" | "fixed";
+    value: number;
+  } | null>(() => readStoredDiscount());
 
   const resolvedForm = {
     ...form,
     fullName: form.fullName ?? user?.name ?? "",
     email: form.email ?? user?.email ?? "",
     phone: form.phone ?? user?.phone ?? "",
+    addressLine1: form.addressLine1 || user?.addressLine1 || "",
+    addressLine2: form.addressLine2 || user?.addressLine2 || "",
+    city: form.city || user?.city || "",
+    state: form.state || user?.state || "",
+    postalCode: form.postalCode || user?.postalCode || "",
+    country: form.country || user?.country || "",
   };
 
   const subtotal = useMemo(() => {
@@ -67,10 +91,18 @@ export default function ShippingPage() {
     }, 0);
   }, [cart, products]);
 
-  const shippingEstimate = subtotal >= 999 ? 0 : 99;
-  const estimatedTotal = subtotal + shippingEstimate;
+  const discountAmount = useMemo(() => {
+    if (!appliedDiscount) return 0;
+    const raw = appliedDiscount.type === "percentage"
+      ? (subtotal * (appliedDiscount.value / 100))
+      : appliedDiscount.value;
+    return Math.max(0, Math.min(raw, subtotal));
+  }, [appliedDiscount, subtotal]);
 
-  const handleSubmit = () => {
+  const shippingEstimate = subtotal >= 999 ? 0 : 99;
+  const estimatedTotal = subtotal - discountAmount + shippingEstimate;
+
+  const handleSubmit = async () => {
     setMessage(null);
     if (!resolvedForm.email.trim() || !resolvedForm.phone.trim()) {
       setMessage("Email and contact number are required.");
@@ -100,6 +132,27 @@ export default function ShippingPage() {
         address: fullAddress,
       })
     );
+
+    if (appliedDiscount) {
+      window.localStorage.setItem("shids-style/discount", JSON.stringify(appliedDiscount));
+    } else {
+      window.localStorage.removeItem("shids-style/discount");
+    }
+
+    if (user) {
+      try {
+        await updateUser({
+          addressLine1: resolvedForm.addressLine1,
+          addressLine2: resolvedForm.addressLine2,
+          city: resolvedForm.city,
+          state: resolvedForm.state,
+          postalCode: resolvedForm.postalCode,
+          country: resolvedForm.country || "India",
+        });
+      } catch (error) {
+        console.warn("Failed to save address", error);
+      }
+    }
 
     router.push("/payment");
   };
@@ -205,7 +258,7 @@ export default function ShippingPage() {
                 autoComplete="address-line1"
                 placeholder="House No, Street, Area"
                 className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                value={form.addressLine1}
+                value={resolvedForm.addressLine1}
                 onChange={(e) => setForm((prev) => ({ ...prev, addressLine1: e.target.value }))}
               />
             </label>
@@ -216,7 +269,7 @@ export default function ShippingPage() {
                 autoComplete="address-line2"
                 placeholder="Apartment, suite, landmark"
                 className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                value={form.addressLine2}
+                value={resolvedForm.addressLine2}
                 onChange={(e) => setForm((prev) => ({ ...prev, addressLine2: e.target.value }))}
               />
             </label>
@@ -229,7 +282,7 @@ export default function ShippingPage() {
                   autoComplete="address-level2"
                   placeholder="Mumbai"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                  value={form.city}
+                  value={resolvedForm.city}
                   onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
                 />
               </label>
@@ -240,7 +293,7 @@ export default function ShippingPage() {
                   autoComplete="address-level1"
                   placeholder="Maharashtra"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                  value={form.state}
+                  value={resolvedForm.state}
                   onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
                 />
               </label>
@@ -252,7 +305,7 @@ export default function ShippingPage() {
                   autoComplete="postal-code"
                   placeholder="400001"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                  value={form.postalCode}
+                  value={resolvedForm.postalCode}
                   onChange={(e) => setForm((prev) => ({ ...prev, postalCode: e.target.value }))}
                 />
               </label>
@@ -262,7 +315,7 @@ export default function ShippingPage() {
                   autoComplete="country-name"
                   placeholder="India"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                  value={form.country}
+                  value={resolvedForm.country}
                   onChange={(e) => setForm((prev) => ({ ...prev, country: e.target.value }))}
                 />
               </label>
@@ -326,6 +379,12 @@ export default function ShippingPage() {
                 <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-600">Discount</span>
+                <span className="font-medium text-gray-900">
+                  {discountAmount > 0 ? `- ${formatCurrency(discountAmount)}` : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
                 <span className="font-medium text-gray-900">
                   {shippingEstimate === 0 ? "Free" : formatCurrency(shippingEstimate)}
@@ -335,6 +394,53 @@ export default function ShippingPage() {
                 <span className="font-semibold">Total</span>
                 <span className="font-semibold">{formatCurrency(estimatedTotal)}</span>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-100 bg-white/80 p-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-700">Have a discount code?</p>
+              <div className="flex gap-2">
+                <input
+                  value={discountInput}
+                  onChange={(event) => setDiscountInput(event.target.value)}
+                  placeholder="Enter code"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs uppercase tracking-wide focus:border-gray-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDiscountMessage(null);
+                    const code = discountInput.trim().toUpperCase();
+                    if (!code) {
+                      setAppliedDiscount(null);
+                      return;
+                    }
+                    const match = discountCodes.find((discount) => discount.code.toUpperCase() === code && discount.isActive);
+                    if (!match) {
+                      setAppliedDiscount(null);
+                      setDiscountMessage("Invalid or inactive code.");
+                      return;
+                    }
+                    if (match.expiryDate && new Date(match.expiryDate) < new Date()) {
+                      setAppliedDiscount(null);
+                      setDiscountMessage("This code has expired.");
+                      return;
+                    }
+                    if (match.maxUses && match.usedCount >= match.maxUses) {
+                      setAppliedDiscount(null);
+                      setDiscountMessage("This code has reached its limit.");
+                      return;
+                    }
+                    setAppliedDiscount({ code: match.code, type: match.type, value: match.value });
+                    setDiscountMessage(`Applied ${match.code}.`);
+                  }}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Apply
+                </button>
+              </div>
+              {discountMessage && (
+                <p className="text-xs text-gray-600" aria-live="polite">{discountMessage}</p>
+              )}
             </div>
           </div>
         </div>

@@ -1,35 +1,55 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
-import type { User } from "@/app/lib/types";
+import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 
-type ProfileRow = {
-  id: string;
-  email: string;
-  name: string | null;
-  phone: string | null;
-  role: "admin" | "customer" | null;
-  created_at?: string | null;
-};
+// Helper: Check Admin
+async function isAdmin(request: NextRequest) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    let resolvedUser = user;
 
-const mapUserRow = (row: ProfileRow): User & { createdAt?: string | null } => ({
-  id: row.id,
-  email: row.email,
-  name: row.name ?? "SHIDS Member",
-  phone: row.phone ?? undefined,
-  role: row.role ?? "customer",
-  createdAt: row.created_at ?? null,
-});
+    if (!resolvedUser) {
+      const authHeader = request.headers.get("Authorization");
+      if (authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        const { data } = await supabaseAdmin.auth.getUser(token);
+        resolvedUser = data.user ?? null;
+      }
+    }
 
-export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("id,email,name,phone,role,created_at")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!resolvedUser) return false;
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", resolvedUser.id)
+      .single();
+    return profile?.role === "admin";
+  } catch (error) {
+    console.error("Admin check failed", error);
+    return false;
   }
+}
 
-  const users = (data ?? []).map((row) => mapUserRow(row as ProfileRow));
-  return NextResponse.json({ ok: true, data: users });
+export async function GET(request: NextRequest) {
+  try {
+    // LOCK: Only Admins can see the list of all users
+    if (!await isAdmin(request)) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+    
+    return NextResponse.json({ ok: true, data });
+  } catch (error) {
+    console.error("Failed to load users", error);
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
+  }
 }

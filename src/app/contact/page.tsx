@@ -1,10 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
@@ -13,9 +16,11 @@ export default function ContactPage() {
           {/* UI polish: clarified hierarchy and spacing for contact layout. */}
           <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="flex justify-center mb-6">
-              <img
+              <Image
                 src="/shids.svg"
                 alt="Shids Style"
+                width={240}
+                height={48}
                 className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
               />
             </div>
@@ -27,10 +32,32 @@ export default function ContactPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
               <form
                 className="space-y-4"
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                   event.preventDefault();
-                  setSent(true);
-                  setForm({ name: "", email: "", message: "" });
+                  setSubmitting(true);
+                  setError(null);
+                  setSent(false);
+                  try {
+                    const response = await fetch("/api/contact", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: form.name,
+                        email: form.email,
+                        message: form.message,
+                      }),
+                    });
+                    const json = await response.json();
+                    if (!response.ok || !json.ok) {
+                      throw new Error(json.error || "Failed to send message.");
+                    }
+                    setSent(true);
+                    setForm({ name: "", email: "", message: "" });
+                  } catch (err) {
+                    setError((err as Error).message);
+                  } finally {
+                    setSubmitting(false);
+                  }
                 }}
               >
                 <label className="text-sm font-medium text-gray-700">
@@ -69,11 +96,18 @@ export default function ContactPage() {
                   </div>
                 )}
 
+                {error && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" aria-live="polite">
+                    {error}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                  disabled={submitting}
+                  className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 disabled:opacity-60"
                 >
-                  Send Message
+                  {submitting ? "Sending..." : "Send Message"}
                 </button>
               </form>
 

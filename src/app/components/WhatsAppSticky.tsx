@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
 const WHATSAPP_NUMBER = "917007866187";
@@ -19,7 +20,7 @@ export default function WhatsAppSticky() {
       {open && (
         <div className="mb-3 w-72 overflow-hidden rounded-3xl border border-emerald-100 bg-white/95 shadow-2xl backdrop-blur">
           <div className="flex items-center gap-2 bg-emerald-600 px-4 py-3 text-white">
-            <img src="/whatsapp-icon.svg" alt="WhatsApp" className="h-5 w-5" />
+            <Image src="/whatsapp-icon.svg" alt="WhatsApp" width={20} height={20} className="h-5 w-5" />
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-50">WhatsApp Support</p>
               <p className="text-[11px] text-emerald-100">We reply quickly</p>
@@ -72,7 +73,7 @@ export default function WhatsAppSticky() {
         className="group relative flex h-16 w-16 items-center justify-center rounded-full bg-transparent transition hover:-translate-y-1"
         aria-label="Chat on WhatsApp"
       >
-        <img src="/whatsapp-icon.svg" alt="WhatsApp" className="h-11 w-11" />
+        <Image src="/whatsapp-icon.svg" alt="WhatsApp" width={44} height={44} className="h-11 w-11" />
         <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-semibold text-white shadow">
           1
         </span>

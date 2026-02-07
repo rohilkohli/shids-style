@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import type { DiscountCode } from "@/app/lib/types";
 
 type DiscountRow = {
@@ -28,7 +29,39 @@ const mapDiscountRow = (row: DiscountRow): DiscountCode => ({
   createdAt: row.created_at,
 });
 
+async function isAdmin(request: NextRequest) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    let resolvedUser = user;
+
+    if (!resolvedUser) {
+      const authHeader = request.headers.get("Authorization");
+      if (authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        const { data } = await supabaseAdmin.auth.getUser(token);
+        resolvedUser = data.user ?? null;
+      }
+    }
+
+    if (!resolvedUser) return false;
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", resolvedUser.id)
+      .single();
+    return profile?.role === "admin";
+  } catch (error) {
+    console.error("Admin check failed", error);
+    return false;
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!await isAdmin(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const resolved = await params;
   const rawId = resolved?.id ?? "";
   const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
@@ -86,6 +119,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!await isAdmin(_)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const resolved = await params;
   const rawId = resolved?.id ?? "";
   const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";

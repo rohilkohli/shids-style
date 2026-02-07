@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCommerceStore } from "../lib/store";
@@ -71,11 +72,12 @@ export default function Navbar() {
                 </span>
               </button>
               <Link href="/" className="flex items-center h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">
-                <img
+                <Image
                   src="/shids.svg"
                   alt="Shids Style"
                   width={250}
                   height={31}
+                  priority
                   className="h-10 sm:h-12 w-auto max-w-[220px] object-contain block"
                 />
               </Link>
@@ -103,7 +105,7 @@ export default function Navbar() {
                 ref={searchWrapperRef}
               >
                 <span className="text-gray-600 flex-shrink-0">
-                  <img src="/search-interface-symbol.png" alt="Search" className="h-5 w-5 icon-dark opacity-100" />
+                  <Image src="/search-interface-symbol.png" alt="Search" width={20} height={20} className="h-5 w-5 icon-dark opacity-100" />
                 </span>
                 <input
                   ref={searchInputRef}
@@ -150,14 +152,14 @@ export default function Navbar() {
                 className="h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded-full"
                 aria-label="Profile"
               >
-                <img src="/profile-icon.png" alt="Profile" className="h-5 w-5" />
+                <Image src="/profile-icon.png" alt="Profile" width={20} height={20} className="h-5 w-5" />
               </Link>
               <Link
                 href="/wishlist"
                 className="relative h-10 w-10 flex items-center justify-center text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded-full"
                 aria-label="Wishlist"
               >
-                <img src="/wishlist-icon.png" alt="Wishlist" className="h-5 w-5" />
+                <Image src="/wishlist-icon.png" alt="Wishlist" width={20} height={20} className="h-5 w-5" />
                 {mounted && wishlistCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-[color:var(--primary)] text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-semibold">
                     {wishlistCount}
@@ -169,7 +171,7 @@ export default function Navbar() {
                 onClick={() => setShowCart(true)}
                 aria-label="Cart"
               >
-                <img src="/shopping-bag.png" alt="Cart" className="h-5 w-5" />
+                <Image src="/shopping-bag.png" alt="Cart" width={20} height={20} className="h-5 w-5" />
                 {mounted && cartCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-[color:var(--primary)] text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-semibold">
                     {cartCount}

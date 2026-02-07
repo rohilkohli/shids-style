@@ -15,8 +15,6 @@ export default function PaymentPage() {
   const router = useRouter();
   const { cart, products, createOrder } = useCommerceStore();
   const [secondsLeft, setSecondsLeft] = useState(PAYMENT_WINDOW_SECONDS);
-  const [receipt, setReceipt] = useState<File | null>(null);
-  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -27,6 +25,11 @@ export default function PaymentPage() {
     name: string;
     address: string;
   } | null>(null);
+  const [discountInfo, setDiscountInfo] = useState<{
+    code: string;
+    type: "percentage" | "fixed";
+    value: number;
+  } | null>(null);
 
   useEffect(() => {
     const stored = window.localStorage.getItem("shids-style/shipping");
@@ -35,6 +38,14 @@ export default function PaymentPage() {
         setShippingInfo(JSON.parse(stored));
       } catch {
         setShippingInfo(null);
+      }
+    }
+    const discountStored = window.localStorage.getItem("shids-style/discount");
+    if (discountStored) {
+      try {
+        setDiscountInfo(JSON.parse(discountStored));
+      } catch {
+        setDiscountInfo(null);
       }
     }
   }, []);
@@ -80,8 +91,16 @@ export default function PaymentPage() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, [secondsLeft]);
 
+  const discountAmount = useMemo(() => {
+    if (!discountInfo) return 0;
+    const raw = discountInfo.type === "percentage"
+      ? (subtotal * (discountInfo.value / 100))
+      : discountInfo.value;
+    return Math.max(0, Math.min(raw, subtotal));
+  }, [discountInfo, subtotal]);
+
   const shippingFee = subtotal > FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
-  const totalAmount = subtotal + shippingFee;
+  const totalAmount = subtotal - discountAmount + shippingFee;
   const resolvedTxnRef = txnRef ?? "SHIDS-PENDING";
   const upiLink = `upi://pay?pa=8810713286@ibl&pn=SHIDS%20STYLE&mc=&tid=${resolvedTxnRef}&tr=${resolvedTxnRef}&tn=Payment%20for%20SHIDS%20STYLE&am=${totalAmount.toFixed(2)}&cu=INR`;
   const qrCodeUrl = "/payment-qr.png";
@@ -90,10 +109,6 @@ export default function PaymentPage() {
     setMessage(null);
     if (secondsLeft <= 0) {
       setMessage("Order not placed. Payment window expired.");
-      return;
-    }
-    if (!receipt || !receiptDataUrl) {
-      setMessage("Please upload payment screenshot.");
       return;
     }
     if (!shippingInfo) {
@@ -107,13 +122,14 @@ export default function PaymentPage() {
         email: shippingInfo.email,
         address: shippingInfo.address,
         notes: `Phone: ${shippingInfo.phone} | Name: ${shippingInfo.name}`,
-        paymentProof: receiptDataUrl,
         shippingFee,
+        discountCode: discountInfo?.code,
       });
 
       if (order) {
         window.localStorage.setItem("shids-style/last-order", JSON.stringify(order));
         window.localStorage.removeItem("shids-style/shipping");
+        window.localStorage.removeItem("shids-style/discount");
         router.push("/payment-processing");
       } else {
         setMessage("Order not placed. Cart is empty.");
@@ -173,7 +189,7 @@ export default function PaymentPage() {
                     <p className="text-base font-semibold text-gray-900">{formattedTimer}</p>
                   </div>
                   <div className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600">
-                    Upload proof before timer ends
+                    Complete payment before timer ends
                   </div>
                 </div>
                 <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-200">
@@ -189,16 +205,20 @@ export default function PaymentPage() {
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-2xl border border-gray-200 bg-white/80 p-5 text-center space-y-3">
                   <p className="text-xs uppercase tracking-wide text-gray-500">Scan & Pay</p>
-                  <img
+                  <Image
                     src={qrCodeUrl}
                     alt="UPI QR Code"
+                    width={144}
+                    height={144}
                     className="mx-auto h-36 w-36 rounded-xl border border-gray-200 bg-white"
                   />
                   <p className="text-xs text-gray-500">Scan with Google Pay, PhonePe, Paytm, or any UPI app.</p>
                   <div className="mx-auto h-12 w-40 overflow-hidden sm:h-14 sm:w-48">
-                    <img
+                    <Image
                       src="/payment-gw.png"
                       alt="Supported payment apps"
+                      width={192}
+                      height={56}
                       className="h-full w-full object-cover opacity-90"
                     />
                   </div>
@@ -228,58 +248,6 @@ export default function PaymentPage() {
                     Copy UPI ID
                   </button>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-5">
-                <label className="text-sm font-medium text-gray-700">Upload Payment Screenshot</label>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <input
-                    id="payment-receipt"
-                    type="file"
-                    accept="image/*"
-                    className="flex-1 min-w-[220px] rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null;
-                      setReceipt(file);
-                      if (!file) {
-                        setReceiptDataUrl(null);
-                        return;
-                      }
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        setReceiptDataUrl(typeof reader.result === "string" ? reader.result : null);
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                  />
-                  <label
-                    htmlFor="payment-receipt"
-                    className="group inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-black px-5 py-2 text-xs font-medium text-white transition hover:-translate-y-0.5 hover:bg-gray-900 hover:shadow-md active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                  >
-                    <span>Upload</span>
-                    <svg
-                      className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 16V4" />
-                      <path d="M7 9l5-5 5 5" />
-                      <path d="M4 20h16" />
-                    </svg>
-                  </label>
-                </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  Ensure the screenshot shows UPI ID, amount, and reference ID.
-                </p>
-                {receiptDataUrl && (
-                  <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
-                    <img src={receiptDataUrl} alt="Payment proof" className="h-40 w-full object-cover" />
-                  </div>
-                )}
               </div>
 
               {message && (
@@ -362,6 +330,12 @@ export default function PaymentPage() {
                     <span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-600">Discount</span>
+                    <span className="font-medium text-gray-900">
+                      {discountAmount > 0 ? `- ${formatCurrency(discountAmount)}` : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-600">Shipping</span>
                     <span className="font-medium text-gray-900">
                       {shippingFee === 0 ? "Free" : formatCurrency(shippingFee)}
@@ -379,7 +353,6 @@ export default function PaymentPage() {
                 <ul className="mt-3 space-y-2 text-xs text-gray-600">
                   <li>• Use the exact amount shown above.</li>
                   <li>• Keep the reference ID for tracking.</li>
-                  <li>• Upload a clear screenshot to confirm.</li>
                 </ul>
               </div>
             </div>

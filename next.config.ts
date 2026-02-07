@@ -13,12 +13,14 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     formats: ["image/avif", "image/webp"],
+    qualities: [75, 80, 85],
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "*.supabase.co" },
     ],
   },
   async headers() {
+    const scriptEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
     return [
       {
         source: "/:path*",
@@ -30,7 +32,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'",
+              `default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'${scriptEval} https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'`,
           },
         ],
       },

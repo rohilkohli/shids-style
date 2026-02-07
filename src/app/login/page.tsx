@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -114,13 +115,13 @@ export default function LoginPage() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:py-16">
         <div className="mb-6 flex items-center justify-between">
           <Link href="/" className="flex items-center">
-            <img src="/shids.svg" alt="Shids Style" className="h-7 sm:h-8 w-auto max-w-[160px]" />
+            <Image src="/shids.svg" alt="Shids Style" width={160} height={32} priority className="h-7 sm:h-8 w-auto max-w-[160px]" />
           </Link>
         </div>
         <div className="grid gap-6 sm:gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="hidden lg:flex flex-col justify-between rounded-3xl border border-gray-200 bg-white/70 p-10 shadow-lg">
             <div>
-              <img src="/shids-style-logo.svg" alt="Shids Style" className="h-7 w-auto max-w-[160px]" />
+              <Image src="/shids.svg" alt="Shids Style" width={160} height={32} className="h-7 w-auto max-w-[160px]" />
               <h1 className="mt-4 text-4xl font-bold text-gray-900">Welcome back</h1>
               <p className="mt-3 text-sm text-gray-600">
                 Sign in to track orders, manage your profile, and save your favorites.

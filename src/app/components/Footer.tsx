@@ -65,6 +65,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/about" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
+                  About Us
+                </Link>
+              </li>
+              <li>
                 <Link href="/contact" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
                   Contact Us
                 </Link>
@@ -87,12 +92,15 @@ export default function Footer() {
             </ul>
           </div>
           <div>
-            <h3 className="font-medium mb-4">Top Categories</h3>
+            <h3 className="font-medium mb-4">About</h3>
             <ul className="space-y-3 text-sm text-white/70">
-              <li>Oversized Tees</li>
-              <li>Summer Dresses</li>
-              <li>Cargo & Denims</li>
-              <li>Knitwear</li>
+              <li>
+                <Link href="/about" className="hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded">
+                  Our Story
+                </Link>
+              </li>
+              <li>Designed in India</li>
+              <li>Seasonal drops, limited runs</li>
             </ul>
           </div>
         </div>

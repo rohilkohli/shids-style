@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
-import { classNames, formatCurrency } from "@/app/lib/utils";
+import { classNames, formatCurrency, renderDescriptionHtml } from "@/app/lib/utils";
 import type { Product } from "@/app/lib/types";
 
 export default function ProductDetail({ params }: { params: { slug: string } }) {
@@ -48,18 +49,26 @@ export default function ProductDetail({ params }: { params: { slug: string } }) 
         <div className="grid gap-12 lg:grid-cols-2">
           {/* Product Images */}
           <div>
-            <div className="aspect-[3/4] overflow-hidden rounded-lg bg-gray-50">
-              <img 
-                src={product.images[0]} 
-                alt={product.name} 
-                className="h-full w-full object-cover" 
+            <div className="aspect-[3/4] overflow-hidden rounded-lg bg-gray-50 relative">
+              <Image
+                src={product.images[0]}
+                alt={product.name}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
               />
             </div>
             {product.images.length > 1 && (
               <div className="mt-4 grid grid-cols-4 gap-4">
                 {product.images.slice(1).map((img, idx) => (
-                  <div key={idx} className="aspect-square overflow-hidden rounded-lg bg-gray-50">
-                    <img src={img} alt={`${product.name} ${idx + 2}`} className="h-full w-full object-cover" />
+                  <div key={idx} className="aspect-square overflow-hidden rounded-lg bg-gray-50 relative">
+                    <Image
+                      src={img}
+                      alt={`${product.name} ${idx + 2}`}
+                      fill
+                      sizes="(min-width: 1024px) 12vw, 25vw"
+                      className="object-cover"
+                    />
                   </div>
                 ))}
               </div>
@@ -91,7 +100,10 @@ export default function ProductDetail({ params }: { params: { slug: string } }) 
               </div>
             )}
 
-            <p className="text-base text-gray-600 leading-relaxed">{product.description}</p>
+            <div
+              className="text-base text-gray-600 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: renderDescriptionHtml(product.description) }}
+            />
 
             {/* Highlights */}
             <div>
@@ -184,11 +196,13 @@ export default function ProductDetail({ params }: { params: { slug: string } }) 
                     href={`/products/${item.slug}`}
                     className="group"
                   >
-                    <div className="aspect-[3/4] overflow-hidden rounded-lg bg-gray-50 mb-3">
-                      <img 
-                        src={item.images[0]} 
-                        alt={item.name} 
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105" 
+                    <div className="aspect-[3/4] overflow-hidden rounded-lg bg-gray-50 mb-3 relative">
+                      <Image
+                        src={item.images[0]}
+                        alt={item.name}
+                        fill
+                        sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+                        className="object-cover transition duration-500 group-hover:scale-105"
                       />
                     </div>
                     <p className="text-sm text-gray-500 mb-1">{item.category}</p>

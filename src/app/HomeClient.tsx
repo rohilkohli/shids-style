@@ -9,8 +9,12 @@ import type { Product } from "./lib/types";
 import CartDrawer from "./components/CartDrawer";
 import HeroCarousel, { HeroItem } from "./components/HeroCarousel";
 
-const categories = ["All", "Oversized Tees", "Summer Dresses", "Cargo & Denims", "Knitwear", "Accessories"];
 const SHIPPING_DURATION = "48 hours";
+const FEATURED_IMAGES = [
+  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=800&fit=crop",
+  "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=600&h=800&fit=crop",
+  "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600&h=800&fit=crop",
+];
 
 type FilterState = {
   search: string;
@@ -177,6 +181,16 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
   const [newsletterMessage, setNewsletterMessage] = useState<string | null>(null);
   const [heroItems] = useState<HeroItem[]>(initialHeroItems);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(products.map((product) => product.category).filter(Boolean))),
+    [products]
+  );
+  const categories = useMemo(() => ["All", ...categoryOptions], [categoryOptions]);
+  const featuredCategories = useMemo(() => {
+    if (categoryOptions.length >= 3) return categoryOptions.slice(0, 3);
+    const fallbacks = ["New Arrivals", "Signature Fits", "Everyday Essentials"];
+    return [...categoryOptions, ...fallbacks].slice(0, 3);
+  }, [categoryOptions]);
 
   const scrollToSection = useCallback((id: string) => {
     const el = document.getElementById(id);
@@ -244,6 +258,12 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
       product,
     }));
   }, [heroItems, products]);
+
+  useEffect(() => {
+    if (filters.category !== "All" && !categories.includes(filters.category)) {
+      setFilters((prev) => ({ ...prev, category: "All" }));
+    }
+  }, [categories, filters.category]);
 
   if (!ready) {
     return (
@@ -313,36 +333,20 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
       <section className="py-10 sm:py-16 section-tint">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            <Link href="#products" className="group relative aspect-[3/4] overflow-hidden rounded-lg glass-card hover-3d">
-              <img
-                src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=800&fit=crop"
-                alt="Oversized Tees"
-                className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
-                <h3 className="font-display text-3xl font-bold text-white">Oversized Tees</h3>
-              </div>
-            </Link>
-            <Link href="#products" className="group relative aspect-[3/4] overflow-hidden rounded-lg glass-card hover-3d">
-              <img
-                src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=600&h=800&fit=crop"
-                alt="Summer Dresses"
-                className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
-                <h3 className="font-display text-3xl font-bold text-white">Summer Dresses</h3>
-              </div>
-            </Link>
-            <Link href="#products" className="group relative aspect-[3/4] overflow-hidden rounded-lg glass-card hover-3d">
-              <img
-                src="https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600&h=800&fit=crop"
-                alt="Cargo & Denims"
-                className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
-                <h3 className="font-display text-3xl font-bold text-white">Cargo & Denims</h3>
-              </div>
-            </Link>
+            {featuredCategories.map((category, index) => (
+              <Link key={category} href="#products" className="group relative aspect-[3/4] overflow-hidden rounded-lg glass-card hover-3d">
+                <Image
+                  src={FEATURED_IMAGES[index % FEATURED_IMAGES.length]}
+                  alt={category}
+                  fill
+                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  className="object-cover transition duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
+                  <h3 className="font-display text-3xl font-bold text-white">{category}</h3>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -367,15 +371,10 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
               aria-label="Search"
               aria-expanded={searchExpanded}
             >
-              <span className="text-gray-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </span>
               <input
                 ref={searchInputRef}
                 type="text"
-                className={`ml-2 w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-black/10 ${
+                className={`w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-black/10 ${
                   searchExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
                 }`}
                 placeholder="I'm looking for..."
@@ -560,20 +559,50 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
         </div>
       </section>
 
-      <section className="py-8 sm:py-12 section-tint">
+      <section className="section-tint border-y border-black/5 py-6 sm:py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {[
-              { title: "Premium Fabric", body: "Soft-touch blends with durable stitching for daily wear." },
-              { title: "Exclusive Seasonal Picks", body: "Curated edits that drop in limited batches." },
-              { title: "Limited Quantity", body: "Small runs to keep every piece feeling special." },
+              {
+                title: `${SHIPPING_DURATION} Shipping`,
+                body: "Speed-run fulfillment with live order tracking.",
+                icon: (
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path d="M3 12h6l2-9 4 18 2-9h4" />
+                  </svg>
+                ),
+              },
+              {
+                title: "Easy Exchanges",
+                body: "Instant chat support for size swaps and returns.",
+                icon: (
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path d="M21 7H9a4 4 0 1 0 0 8h12" />
+                    <path d="m3 7 3-3m-3 3 3 3m15 7-3 3m3-3-3-3" />
+                  </svg>
+                ),
+              },
+              {
+                title: "Cash on Delivery",
+                body: "Secure checkout with COD on most pincodes.",
+                icon: (
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path d="M12 6v12m-4-3a4 4 0 1 0 8 0c0-2-2-3-4-3s-4-1-4-3a4 4 0 0 1 8 0" />
+                  </svg>
+                ),
+              },
             ].map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-black/70 bg-[#f5efe6]/90 backdrop-blur p-5 text-center shadow-sm"
+                className="glass-card rounded-2xl border border-black/10 px-4 py-4 flex items-start gap-3 shadow-sm"
               >
-                <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                <p className="mt-2 text-xs text-gray-600 leading-relaxed">{item.body}</p>
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white border border-black/10 text-gray-900">
+                  {item.icon}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{item.body}</p>
+                </div>
               </div>
             ))}
           </div>

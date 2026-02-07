@@ -1,478 +1,337 @@
 "use client";
 
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { notFound } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { getProductPrice, useCommerceStore } from "@/app/lib/store";
-import { classNames, formatCurrency } from "@/app/lib/utils";
-import type { Product } from "@/app/lib/types";
+import { useCommerceStore, getProductPrice } from "@/app/lib/store";
+import { ShoppingBag, Star, Truck, ShieldCheck, ArrowRight } from "lucide-react";
+import { formatCurrency, renderDescriptionHtml } from "@/app/lib/utils";
+
+const useIsClient = () =>
+  useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
 
 export default function ProductDetailClient({ slug }: { slug: string }) {
-  const { ready, getProductBySlug, addToCart, toggleWishlist, wishlist, products, addRecentlyViewed } = useCommerceStore();
+  const {
+    addToCart,
+    toggleWishlist,
+    wishlist,
+    getProductBySlug,
+    productsLoading,
+  } = useCommerceStore();
+  const isClient = useIsClient();
   const product = getProductBySlug(slug);
+
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [activeTab, setActiveTab] = useState<"desc" | "specs" | "shipping">("desc");
+  const [mainImage, setMainImage] = useState<string | null>(null);
 
-  const WHATSAPP_NUMBER = "919084978839";
+  const resolvedColor = (() => {
+    if (!product?.colors?.length) return null;
+    if (selectedColor && product.colors.includes(selectedColor)) return selectedColor;
+    return product.colors[0] ?? null;
+  })();
 
-  useEffect(() => {
-    if (product) {
-      addRecentlyViewed(product.id);
-    }
-  }, [product, addRecentlyViewed]);
+  const resolvedSize = (() => {
+    if (!product?.sizes?.length) return null;
+    if (selectedSize && product.sizes.includes(selectedSize)) return selectedSize;
+    return product.sizes[0] ?? null;
+  })();
 
-  const alsoLike = useMemo(() => {
-    if (!product) return [] as Product[];
-    const sameCategory = products.filter((p: Product) => p.category === product.category && p.id !== product.id);
-    const fallback = products.filter((p: Product) => p.id !== product.id);
-    return (sameCategory.length ? sameCategory : fallback).slice(0, 4);
-  }, [products, product]);
+  const resolvedMainImage = (() => {
+    if (!product?.images?.length) return null;
+    if (mainImage && product.images.includes(mainImage)) return mainImage;
+    return product.images[0] ?? null;
+  })();
 
-  const productImages = useMemo(() => (product?.images ?? []).filter(Boolean), [product]);
-  const safeImageIndex = productImages.length ? Math.min(selectedImageIndex, productImages.length - 1) : 0;
-  const activeImage = productImages[safeImageIndex] ?? productImages[0];
-  const canSelectColor = Boolean(product?.colors?.length);
-  const canSelectSize = Boolean(product?.sizes?.length);
-  const selectedColorValue = selectedColor ?? product?.colors?.[0] ?? null;
-  const selectedSizeValue = selectedSize ?? product?.sizes?.[0] ?? null;
+  const resolvedQuantity = (() => {
+    if (!product) return quantity;
+    const max = Math.max(product.stock, 1);
+    return Math.min(Math.max(quantity, 1), max);
+  })();
 
-  if (!ready) {
+  if (!isClient || (!product && productsLoading)) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-rose-50 text-gray-800">
-        <div className="mx-auto max-w-5xl px-6 py-24 text-center text-lg font-bold text-gray-600">
-          Loading product...
+      <div className="bg-white min-h-screen pt-24 pb-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+            <h1 className="text-2xl font-medium text-black mb-2">Loading product...</h1>
+            <p className="text-gray-500">Fetching the latest details.</p>
+          </div>
         </div>
-      </main>
+      </div>
     );
   }
 
-  if (!product) return notFound();
+  if (!product) {
+    return (
+      <div className="bg-white min-h-screen pt-24 pb-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+            <h1 className="text-2xl font-medium text-black mb-2">Product not found</h1>
+            <p className="text-gray-500">Try refreshing or return to the shop.</p>
+            <Link
+              href="/shop"
+              className="inline-flex items-center justify-center mt-6 px-6 h-12 rounded-full bg-black text-white text-sm font-medium hover:bg-gray-800 transition"
+            >
+              Back to Shop
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const { sale, compareAt } = getProductPrice(product);
-  const wished = wishlist.includes(product.id);
-  const lowStock = product.stock > 0 && product.stock <= 5;
+  const isWishlisted = wishlist.includes(product.id);
+  const currentStock = product.stock;
+  const clampQuantity = (next: number) => {
+    const max = Math.max(currentStock, 1);
+    return Math.min(Math.max(next, 1), max);
+  };
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    if (product.sizes.length > 0 && !resolvedSize) {
+      alert("Please select a size");
+      return;
+    }
+    if (currentStock < resolvedQuantity) {
+      alert("Sorry, we don't have enough stock for this selection.");
+      return;
+    }
+
+    addToCart({
+      productId: product.id,
+      quantity: resolvedQuantity,
+      color: resolvedColor || undefined,
+      size: resolvedSize || undefined,
+    });
+    alert("Added to cart!");
+  };
 
   return (
-    <>
-      <main className="min-h-screen bg-[color:var(--background)] text-gray-800">
-      <div className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <Link href="/" className="hover:text-black font-semibold transition">Home</Link>
-            <span>/</span>
-            <Link href="/shop" className="hover:text-black font-semibold transition">Shop</Link>
-            <span>/</span>
-            <span className="font-semibold text-gray-800">{product.name}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="rounded-full border border-gray-200 px-3 py-1">Product</span>
-            {product.badge && <span className="rounded-full bg-black text-white px-3 py-1">{product.badge}</span>}
-          </div>
-        </header>
+    <main className="bg-white min-h-screen pt-24 pb-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav className="flex items-center text-xs text-gray-500 mb-6">
+          <Link href="/" className="hover:text-black transition-colors">Home</Link>
+          <ArrowRight className="w-4 h-4 mx-2" />
+          <Link href="/shop" className="hover:text-black transition-colors">Shop</Link>
+          <ArrowRight className="w-4 h-4 mx-2" />
+          <span className="text-black font-medium">{product.name}</span>
+        </nav>
 
-        <section className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4">
-            <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg group aspect-[4/5]">
-              {activeImage ? (
-                <Image
-                  src={activeImage}
-                  alt={product.name}
-                  fill
-                  priority
-                  sizes="(min-width: 1024px) 50vw, 100vw"
-                  quality={85}
-                  className="object-contain transition duration-700 group-hover:scale-105 bg-white"
-                />
-              ) : (
-                <div className="flex h-full min-h-[360px] items-center justify-center bg-gray-100 text-sm text-gray-500">
-                  No image available
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+          <div className="space-y-6 animate-slide-up">
+            <div className="aspect-[4/5] relative bg-gray-100 rounded-2xl overflow-hidden shadow-lg group">
+              {product.badge && (
+                <div className="absolute top-4 left-4 bg-black text-white text-xs font-bold px-3 py-1 uppercase tracking-widest z-10">
+                  {product.badge}
                 </div>
               )}
-              {product.discountPercent ? (
-                <div className="absolute right-4 top-4 rounded-full bg-black px-3 py-1 text-xs font-semibold text-white shadow">
-                  -{product.discountPercent}%
-                </div>
-              ) : null}
-              {productImages.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                    onClick={() =>
-                      setSelectedImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length)
-                    }
-                    aria-label="Previous image"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-gray-900 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                    onClick={() => setSelectedImageIndex((prev) => (prev + 1) % productImages.length)}
-                    aria-label="Next image"
-                  >
-                    ›
-                  </button>
-                </>
-              )}
+              <Image
+                src={resolvedMainImage || "/placeholder.png"}
+                alt={product.name}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                priority
+              />
             </div>
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
-              {productImages.map((img, index) => (
+            <div className="grid grid-cols-4 gap-4">
+              {product.images.map((img, idx) => (
                 <button
-                  key={`${img}-${index}`}
-                  type="button"
-                  className={classNames(
-                    "aspect-square overflow-hidden rounded-2xl border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
-                    safeImageIndex === index ? "border-black" : "border-gray-200 hover:border-gray-400"
-                  )}
-                  onClick={() => setSelectedImageIndex(index)}
-                  aria-pressed={safeImageIndex === index}
-                  >
-                    <div className="relative h-full w-full">
-                      <Image
-                        src={img}
-                        alt={`${product.name} ${index + 1}`}
-                        fill
-                        sizes="(min-width: 640px) 80px, 64px"
-                        quality={75}
-                        className="object-contain bg-white"
-                      />
-                    </div>
-                  </button>
+                  key={img}
+                  onClick={() => setMainImage(img)}
+                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                    resolvedMainImage === img ? "border-black ring-1 ring-black/10" : "border-transparent hover:border-gray-200"
+                  }`}
+                  aria-label={`View image ${idx + 1}`}
+                >
+                  <Image src={img} alt={`${product.name} view ${idx + 1}`} fill sizes="96px" className="object-cover" />
+                </button>
               ))}
             </div>
           </div>
 
-          <div className="space-y-6 lg:sticky lg:top-24">
-            <div className="rounded-3xl border border-gray-200 bg-white/95 p-6 shadow-lg">
-              <p className="text-xs uppercase tracking-[0.25em] text-gray-500 font-semibold">{product.category}</p>
-              <h1 className="mt-2 text-3xl font-bold text-gray-900">{product.name}</h1>
-              <div className="mt-3 flex items-center gap-3">
-                <div className="flex items-center gap-1 text-amber-500 text-sm">★★★★★</div>
-                <span className="text-xs text-gray-500">4.8 · 22 reviews</span>
+          <div className="animate-slide-up delay-100">
+            <div className="mb-8 border-b border-gray-100 pb-8">
+              <div className="flex items-center gap-4 mb-4">
+                <Star className="w-4 h-4 fill-current" />
+                <span className="ml-1 text-sm font-medium text-gray-900">{product.rating || "New"}</span>
+                <span className="text-gray-300">|</span>
+                <span className="text-sm text-gray-500">{product.category}</span>
+                <span className="text-gray-300">|</span>
+                <span className={`text-sm font-medium ${currentStock > 0 ? "text-green-600" : "text-red-600"}`}>
+                  {currentStock > 0 ? `In Stock (${currentStock} available)` : "Out of Stock"}
+                </span>
               </div>
 
-              <div className="mt-4 flex items-center gap-3 text-2xl font-semibold">
-                <span className="text-gray-900">{formatCurrency(sale)}</span>
-                {compareAt !== sale && <span className="text-lg text-gray-400 line-through">{formatCurrency(compareAt)}</span>}
-              </div>
-              <p className={classNames("mt-2 text-sm font-medium", lowStock ? "text-amber-600" : "text-gray-500")}>
-                {product.stock > 0 ? `Hurry up! Only ${product.stock} item(s) left` : "Sold out"}
-              </p>
+              <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-4">{product.name}</h1>
 
-              <div className="mt-4 grid grid-cols-3 gap-3 text-xs text-gray-600">
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center">Easy Returns</div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center">Cash on Delivery</div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-center">Secure Checkout</div>
+              <div className="flex items-baseline gap-4">
+                <span className="text-2xl font-semibold text-gray-900">{formatCurrency(sale)}</span>
+                {product.discountPercent && compareAt !== sale && (
+                  <>
+                    <span className="text-lg text-gray-400 line-through decoration-1">{formatCurrency(compareAt)}</span>
+                    <span className="text-sm font-medium text-red-600 bg-red-50 px-2 py-1 rounded">
+                      -{product.discountPercent}% OFF
+                    </span>
+                  </>
+                )}
               </div>
+            </div>
 
-              <div className="mt-5 space-y-4">
-                {canSelectColor && (
+            <div className="space-y-8">
+              {product.colors.length > 0 && (
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Color</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {product.colors.map((color: string) => (
+                  <h3 className="text-sm font-medium text-gray-900 mb-4 uppercase tracking-wide">Color</h3>
+                  <div className="flex flex-wrap gap-3">
+                    {product.colors.map((color) => (
                       <button
                         key={color}
-                        className={classNames(
-                          "rounded-full border px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
-                          selectedColorValue === color
-                            ? "border-black bg-black text-white"
-                            : "border-gray-300 bg-white text-gray-700 hover:border-black"
-                        )}
                         onClick={() => setSelectedColor(color)}
-                        aria-pressed={selectedColorValue === color}
+                        className={`px-6 py-2 rounded-full text-sm border transition-all ${
+                          resolvedColor === color
+                            ? "border-black bg-black text-white shadow-md"
+                            : "border-gray-200 text-gray-600 hover:border-gray-400"
+                        }`}
                       >
                         {color}
                       </button>
                     ))}
                   </div>
                 </div>
-                )}
+              )}
 
-                {canSelectSize && (
+              {product.sizes.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Size</p>
-                    <button
-                      type="button"
-                      className="text-xs text-gray-500 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded"
-                      onClick={() => setShowSizeGuide(true)}
-                    >
-                      Size guide
-                    </button>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-medium text-gray-900 uppercase tracking-wide">Size</h3>
+                    <button className="text-xs text-gray-500 underline hover:text-black" type="button">Size Guide</button>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {product.sizes.map((size: string) => (
+                  <div className="grid grid-cols-4 gap-3">
+                    {product.sizes.map((size) => (
                       <button
                         key={size}
-                        className={classNames(
-                          "min-w-[56px] rounded-full border px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
-                          selectedSizeValue === size
-                            ? "border-black bg-black text-white"
-                            : "border-gray-300 bg-white text-gray-700 hover:border-black"
-                        )}
                         onClick={() => setSelectedSize(size)}
-                        aria-pressed={selectedSizeValue === size}
+                        className={`py-3 rounded-lg text-sm border transition-all ${
+                          resolvedSize === size
+                            ? "border-black bg-black text-white shadow-md"
+                            : "border-gray-200 text-gray-600 hover:border-gray-400"
+                        }`}
                       >
                         {size}
                       </button>
                     ))}
                   </div>
                 </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center overflow-hidden rounded-full border border-gray-300">
-                    <button
-                      type="button"
-                      className="h-10 w-10 text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                      onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                      aria-label="Decrease quantity"
-                    >
-                      −
-                    </button>
-                    <span className="w-10 text-center text-sm font-semibold text-gray-800">{quantity}</span>
-                    <button
-                      type="button"
-                      className="h-10 w-10 text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                      onClick={() =>
-                        setQuantity((prev) => (product.stock ? Math.min(product.stock, prev + 1) : prev + 1))
-                      }
-                      aria-label="Increase quantity"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <button
-                    className="flex-1 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                    disabled={product.stock === 0}
-                    onClick={() => {
-                      if (canSelectColor && !selectedColorValue) {
-                        setActionMessage("Please choose a color.");
-                        return;
-                      }
-                      if (canSelectSize && !selectedSizeValue) {
-                        setActionMessage("Please choose a size.");
-                        return;
-                      }
-                      const nextQty = Math.min(quantity, product.stock || 1);
-                      addToCart({
-                        productId: product.id,
-                        quantity: nextQty,
-                        color: selectedColorValue ?? undefined,
-                        size: selectedSizeValue ?? undefined,
-                      });
-                      setActionMessage("Added to cart.");
-                      setTimeout(() => setActionMessage(null), 2000);
-                    }}
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className={classNames(
-                      "rounded-full border px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
-                      wished ? "border-black bg-black text-white" : "border-gray-300 text-gray-700 hover:border-black"
-                    )}
-                    onClick={() => toggleWishlist(product.id)}
-                    aria-pressed={wished}
-                  >
-                    {wished ? "Saved" : "Save"}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                    onClick={() => {
-                      const details = [
-                        `Product: ${product.name}`,
-                        selectedColorValue ? `Color: ${selectedColorValue}` : null,
-                        selectedSizeValue ? `Size: ${selectedSizeValue}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" | ");
-                      const text = `Hi! I'm interested in this item. ${details}`;
-                      const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
-                      window.open(url, "_blank", "noopener,noreferrer");
-                    }}
-                  >
-                    Ask a question
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:border-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                    onClick={async () => {
-                      const shareUrl = window.location.href;
-                      const shareText = `Check out ${product.name} on SHIDS STYLE.`;
-                      if (navigator.share) {
-                        try {
-                          await navigator.share({ title: product.name, text: shareText, url: shareUrl });
-                          return;
-                        } catch {
-                          // ignore
-                        }
-                      }
-                      if (navigator.clipboard) {
-                        await navigator.clipboard.writeText(shareUrl);
-                        setActionMessage("Link copied to clipboard.");
-                        setTimeout(() => setActionMessage(null), 2000);
-                      } else {
-                        setActionMessage("Unable to share on this device.");
-                        setTimeout(() => setActionMessage(null), 2000);
-                      }
-                    }}
-                  >
-                    Share
-                  </button>
-                </div>
-
-                {actionMessage && (
-                  <p className="text-xs text-gray-600" aria-live="polite">
-                    {actionMessage}
-                  </p>
-                )}
-
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
-                  <p className="font-semibold text-gray-900">Guarantee Safe Checkout</p>
-                  <img src="/payment-gw.png" alt="Payment methods" className="mt-3 h-10 w-44 object-cover sm:h-11 sm:w-52" />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-3xl border border-gray-200 bg-white/95 p-6 shadow-lg">
-              <details open className="group">
-                <summary className="cursor-pointer text-sm font-semibold text-gray-900">Description</summary>
-                <p className="mt-2 text-sm text-gray-600 leading-relaxed">{product.description}</p>
-              </details>
-              {product.highlights.length > 0 && (
-                <details open className="group">
-                  <summary className="cursor-pointer text-sm font-semibold text-gray-900">Highlights</summary>
-                  <ul className="mt-2 grid gap-2 text-sm text-gray-600">
-                    {product.highlights.map((highlight) => (
-                      <li key={highlight} className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-black" />
-                        <span>{highlight}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
               )}
-              <details className="group">
-                <summary className="cursor-pointer text-sm font-semibold text-gray-900">Shipping and Returns</summary>
-                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                  Standard delivery in 3–7 business days. Express options may be available at checkout.
-                </p>
-              </details>
-              <details className="group">
-                <summary className="cursor-pointer text-sm font-semibold text-gray-900">Return Policies</summary>
-                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                  Returns accepted within 7 days of delivery for unused items in original packaging.
-                </p>
-              </details>
-            </div>
-          </div>
-        </section>
 
-        {alsoLike.length > 0 && (
-          <section className="mt-12">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">Pairs well with</h3>
-              <Link href="/" className="text-sm text-gray-600 hover:text-black font-medium transition">View all</Link>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-              {alsoLike.map((item: Product) => {
-                const price = getProductPrice(item);
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/products/${item.slug}`}
-                    className="block rounded-xl border border-gray-200 p-3 bg-white/95 shadow-sm hover:shadow-md transition"
-                  >
-                    <div className="aspect-square overflow-hidden rounded-lg bg-gray-50 border border-gray-200 relative">
-                      <Image
-                        src={item.images?.[0] ?? "/file.svg"}
-                        alt={item.name}
-                        fill
-                        sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
-                        quality={80}
-                        className="object-cover"
-                      />
-                    </div>
-                    <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-semibold">{item.category}</p>
-                    <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.name}</p>
-                    <p className="text-xs font-semibold text-gray-900">{formatCurrency(price.sale)}</p>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
-      </div>
-      </main>
-
-      {showSizeGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowSizeGuide(false)}
-          />
-          <div className="relative w-full max-w-5xl rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500 font-semibold">Size Guide</p>
-                <h3 className="text-2xl font-bold text-gray-900">Womenswear (Body Measurements)</h3>
+                <h3 className="text-sm font-medium text-gray-900 mb-4 uppercase tracking-wide">Quantity</h3>
+                <div className="flex items-center w-32 border border-gray-200 rounded-lg">
+                  <button
+                    className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-black transition-colors"
+                    onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
+                    type="button"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="text"
+                    readOnly
+                    value={resolvedQuantity}
+                    className="w-12 text-center text-sm font-medium border-x border-gray-100 py-2 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
+                    className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-black transition-colors"
+                    type="button"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
+            </div>
+
+            <div className="flex gap-4 mb-10 mt-10">
               <button
-                type="button"
-                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => setShowSizeGuide(false)}
+                onClick={handleAddToCart}
+                className="flex-1 bg-black text-white h-14 rounded-full font-medium hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                disabled={currentStock === 0}
               >
-                Close
+                <ShoppingBag className="w-5 h-5" />
+                {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
+              </button>
+              <button
+                onClick={() => toggleWishlist(product.id)}
+                className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${
+                  isWishlisted
+                    ? "border-red-500 bg-red-50 text-red-500"
+                    : "border-gray-200 hover:border-black text-gray-500 hover:text-black"
+                }`}
+                type="button"
+              >
+                <Star className={`w-5 h-5 ${isWishlisted ? "fill-current" : ""}`} />
               </button>
             </div>
 
-            <div className="mt-6 overflow-x-auto">
-              <table className="w-full min-w-[560px] border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="border border-gray-200 px-4 py-3 text-left font-semibold">Sizes (in inches)</th>
-                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">S</th>
-                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">M</th>
-                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">L</th>
-                    <th className="border border-gray-200 px-4 py-3 text-center font-semibold">XL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { label: "Chest", values: [34, 36, 38, 40] },
-                    { label: "Stomach", values: [28, 30, 32, 34] },
-                    { label: "Hips", values: [36, 38, 40, 42] },
-                    { label: "Shoulder", values: [15, 15.5, 16, 16.5] },
-                    { label: "Armhole", values: [15.5, 16.5, 16.5, 17.5] },
-                  ].map((row) => (
-                    <tr key={row.label}>
-                      <td className="border border-gray-200 px-4 py-3 font-medium text-gray-700">{row.label}</td>
-                      {row.values.map((value, index) => (
-                        <td key={`${row.label}-${index}`} className="border border-gray-200 px-4 py-3 text-center text-gray-800">
-                          {value}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="border-t border-gray-100 pt-8">
+              <div className="flex gap-8 mb-6 border-b border-gray-100">
+                {(["desc", "specs", "shipping"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative pb-3 text-sm font-semibold transition ${
+                      activeTab === tab ? "text-black" : "text-gray-400 hover:text-gray-600"
+                    }`}
+                    type="button"
+                  >
+                    {tab === "desc" ? "Description" : tab === "specs" ? "Details" : "Shipping"}
+                    {activeTab === tab && (
+                      <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black rounded-full" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="prose prose-sm text-gray-600 animate-fade-in">
+                {activeTab === "desc" && (
+                  <div dangerouslySetInnerHTML={{ __html: renderDescriptionHtml(product.description) }} />
+                )}
+                {activeTab === "specs" && (
+                  <ul className="space-y-2">
+                    {product.highlights.map((highlight, idx) => (
+                      <li key={highlight ?? idx} className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-black mt-2" />
+                        {highlight}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {activeTab === "shipping" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Truck className="w-5 h-5 text-gray-400" />
+                      <span>Free shipping on orders over Rs 999</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="w-5 h-5 text-gray-400" />
+                      <span>30-day return policy</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </main>
   );
 }

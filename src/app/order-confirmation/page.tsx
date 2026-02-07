@@ -2,24 +2,40 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
 import type { Order } from "../lib/types";
 
+const ORDER_STORAGE_KEY = "shids-style/last-order";
+const formatOrderId = (value: string) => (value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-6)}` : value);
+
 export default function OrderConfirmationPage() {
   const { products } = useCommerceStore();
-  const [order] = useState<Order | null>(() => {
-    if (typeof window === "undefined") return null;
-    const stored = window.localStorage.getItem("shids-style/last-order");
-    if (!stored) return null;
+  const [copied, setCopied] = useState(false);
+
+  const rawOrder = useSyncExternalStore(
+    (callback) => {
+      const handler = (event: StorageEvent) => {
+        if (!event.key || event.key === ORDER_STORAGE_KEY) {
+          callback();
+        }
+      };
+      window.addEventListener("storage", handler);
+      return () => window.removeEventListener("storage", handler);
+    },
+    () => window.localStorage.getItem(ORDER_STORAGE_KEY),
+    () => null
+  );
+
+  const order = useMemo(() => {
+    if (!rawOrder) return null;
     try {
-      return JSON.parse(stored) as Order;
+      return JSON.parse(rawOrder) as Order;
     } catch {
       return null;
     }
-  });
-  const [copied, setCopied] = useState(false);
+  }, [rawOrder]);
 
   const customerName = useMemo(() => {
     if (!order?.notes) return "";
@@ -49,7 +65,8 @@ export default function OrderConfirmationPage() {
   }, [order, items]);
 
   const shippingFee = typeof order?.shippingFee === "number" ? order.shippingFee : 0;
-  const computedTotal = computedSubtotal + shippingFee;
+  const discountAmount = typeof order?.discountAmount === "number" ? order.discountAmount : 0;
+  const computedTotal = computedSubtotal - discountAmount + shippingFee;
 
   if (!order) {
     return (
@@ -81,7 +98,7 @@ export default function OrderConfirmationPage() {
             </div>
             <p className="text-xs uppercase tracking-[0.35em] text-gray-500">Thank you</p>
             <h1 className="mt-3 text-2xl sm:text-3xl font-bold text-gray-900">Order Confirmed</h1>
-            <p className="mt-2 text-sm text-gray-600">We have received your payment proof.</p>
+            <p className="mt-2 text-sm text-gray-600">We have received your order and will verify payment shortly.</p>
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -107,7 +124,7 @@ export default function OrderConfirmationPage() {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Order ID</p>
-                  <p className="text-base sm:text-lg font-semibold text-gray-900">{order.id}</p>
+                  <p className="text-base sm:text-lg font-semibold text-gray-900">{formatOrderId(order.id)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600">
@@ -177,6 +194,12 @@ export default function OrderConfirmationPage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Subtotal</span>
                 <span className="font-medium text-gray-900">{formatCurrency(computedSubtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Discount</span>
+                <span className="font-medium text-gray-900">
+                  {discountAmount > 0 ? `- ${formatCurrency(discountAmount)}` : "—"}
+                </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Shipping</span>

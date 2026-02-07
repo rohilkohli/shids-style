@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
-import { formatCurrency, formatDate, formatDateTime, slugify } from "@/app/lib/utils";
-import type { OrderStatus, Product, Order, Customer, DiscountCode } from "@/app/lib/types";
+import { formatCurrency, formatDate, formatDateTime, renderDescriptionHtml, slugify } from "@/app/lib/utils";
+import type { Category, OrderStatus, Product, Order, Customer } from "@/app/lib/types";
+import { supabase } from "@/app/lib/supabase/client";
 
 const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "fulfilled", "shipped", "cancelled"];
 
-type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter";
+type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter" | "contact" | "categories";
 
 type ProductFormState = {
   id?: string;
@@ -42,6 +43,14 @@ type NewsletterEntry = {
   created_at: string;
 };
 
+type ContactMessage = {
+  id: number;
+  name: string;
+  email: string;
+  message: string;
+  created_at: string;
+};
+
 type ProfileSummary = {
   id: string;
   email: string;
@@ -49,6 +58,45 @@ type ProfileSummary = {
   phone?: string | null;
   role?: "admin" | "customer" | null;
   createdAt?: string | null;
+};
+
+const parseList = (value: string) =>
+  value
+    .split(/[,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const sanitizeDataUrl = (value: string) =>
+  value.replace(/^['"]|['"]$/g, "").replace(/\s+/g, "");
+
+const isValidDataUrl = (value: string) => {
+  const cleaned = sanitizeDataUrl(value);
+  return /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/.test(cleaned);
+};
+
+const isImageSrc = (value: string) => {
+  if (!value) return false;
+  if (value.startsWith("data:image")) return isValidDataUrl(value);
+  if (value.startsWith("http://") || value.startsWith("https://")) return true;
+  if (value.startsWith("/")) return true;
+  return false;
+};
+
+const parseImages = (value: string) => {
+  return value
+    .split(/\n+/)
+    .flatMap((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return [] as string[];
+      if (trimmed.startsWith("data:image")) {
+        return isValidDataUrl(trimmed) ? [sanitizeDataUrl(trimmed)] : [];
+      }
+      return trimmed
+        .split(/[;,]+/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+        .filter(isImageSrc);
+    });
 };
 
 export default function AdminPage() {
@@ -68,7 +116,6 @@ export default function AdminPage() {
     deleteOrder,
     deleteCustomer,
     createDiscountCode,
-    updateDiscountCode,
     deleteDiscountCode,
     toggleDiscountCodeActive,
   } = useCommerceStore();
@@ -86,16 +133,21 @@ export default function AdminPage() {
   const [productStep, setProductStep] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [showRawImages, setShowRawImages] = useState(false);
-  const [descriptionPreview, setDescriptionPreview] = useState(false);
   const [imageLinkInput, setImageLinkInput] = useState("");
+  const descriptionEditorRef = useRef<HTMLDivElement | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [orderStatusDrafts, setOrderStatusDrafts] = useState<Record<string, OrderStatus>>({});
   const [awbNumber, setAwbNumber] = useState("");
+  const [courierName, setCourierName] = useState("");
   const [heroItems, setHeroItems] = useState<HeroEntry[]>([]);
   const [newsletterEmails, setNewsletterEmails] = useState<NewsletterEntry[]>([]);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
+  const [categoryItems, setCategoryItems] = useState<Category[]>([]);
+  const [categoryName, setCategoryName] = useState("");
+  const [categorySaving, setCategorySaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [heroProductId, setHeroProductId] = useState("");
@@ -163,20 +215,25 @@ export default function AdminPage() {
   }, [ready, user]);
 
   useEffect(() => {
-    if (currentView !== "hero" && currentView !== "newsletter") return;
+    if (currentView !== "hero" && currentView !== "newsletter" && currentView !== "contact") return;
     const loadMarketing = async () => {
       try {
-        const [heroRes, newsletterRes] = await Promise.all([
+        const [heroRes, newsletterRes, contactRes] = await Promise.all([
           fetch("/api/hero"),
           fetch("/api/newsletter"),
+          fetch("/api/contact"),
         ]);
         const heroJson = await heroRes.json();
         const newsletterJson = await newsletterRes.json();
+        const contactJson = await contactRes.json();
         if (heroJson?.ok) {
           setHeroItems(heroJson.data as HeroEntry[]);
         }
         if (newsletterJson?.ok) {
           setNewsletterEmails(newsletterJson.data as NewsletterEntry[]);
+        }
+        if (contactJson?.ok) {
+          setContactMessages(contactJson.data as ContactMessage[]);
         }
       } catch (error) {
         console.warn("Failed to load marketing data", error);
@@ -185,7 +242,31 @@ export default function AdminPage() {
     loadMarketing();
   }, [currentView]);
 
-  const categories = useMemo(() => ["all", ...new Set(products.map((p) => p.category))], [products]);
+  const loadCategories = async () => {
+    try {
+      const response = await fetch("/api/categories");
+      const json = await response.json();
+      if (response.ok && json?.ok) {
+        setCategoryItems(json.data as Category[]);
+      }
+    } catch (error) {
+      console.warn("Failed to load categories", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!ready || !user || user.role !== "admin") return;
+    if (currentView === "categories" || currentView === "products") {
+      loadCategories();
+    }
+  }, [ready, user, currentView]);
+
+  const categoryOptions = useMemo(() => {
+    const names = categoryItems.length ? categoryItems.map((cat) => cat.name) : products.map((p) => p.category);
+    return Array.from(new Set(names)).filter(Boolean);
+  }, [categoryItems, products]);
+
+  const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
 
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -197,6 +278,29 @@ export default function AdminPage() {
       return matchesTerm && matchesCategory;
     });
   }, [products, searchTerm, categoryFilter]);
+
+  const imageList = useMemo(() => parseImages(productForm.images), [productForm.images]);
+  const previewImages = imageList.filter(isImageSrc);
+
+  useEffect(() => {
+    const editor = descriptionEditorRef.current;
+    if (!editor) return;
+    const next = productForm.description || "";
+    if (editor.innerHTML !== next) {
+      editor.innerHTML = next;
+    }
+  }, [productForm.description]);
+
+  const applyDescriptionCommand = (command: string, value?: string) => {
+    const editor = descriptionEditorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(command, false, value);
+    const html = editor.innerHTML;
+    if (!html) return;
+    setProductForm((prev) => ({ ...prev, description: html }));
+  };
+
 
   // Calculate stats
   const totalRevenue = useMemo(() => {
@@ -361,26 +465,27 @@ export default function AdminPage() {
     }
   };
 
-  const parseList = (value: string) =>
-    value
-      .split(/[,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+  const updateImageList = (images: string[]) => {
+    setProductForm((prev) => ({
+      ...prev,
+      images: images.length ? images.join("\n") : "",
+    }));
+  };
 
-  const parseImages = (value: string) => {
-    return value
-      .split(/\n+/)
-      .flatMap((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return [] as string[];
-        if (trimmed.startsWith("data:image")) {
-          return [trimmed];
-        }
-        return trimmed
-          .split(/[;,]+/)
-          .map((item) => item.trim())
-          .filter(Boolean);
-      });
+  const moveImage = (index: number, direction: -1 | 1) => {
+    const images = parseImages(productForm.images);
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= images.length) return;
+    const reordered = [...images];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(nextIndex, 0, moved);
+    updateImageList(reordered);
+  };
+
+  const deleteImage = (index: number) => {
+    const images = parseImages(productForm.images);
+    const updated = images.filter((_, current) => current !== index);
+    updateImageList(updated);
   };
 
   const productSteps = [
@@ -481,7 +586,7 @@ export default function AdminPage() {
     if (productStep === 3) {
       const images = parseImages(productForm.images);
       if (images.length === 0) {
-        alert("Please add at least one image URL");
+        alert("Please add at least one image");
         return;
       }
     }
@@ -518,7 +623,7 @@ export default function AdminPage() {
     if (productStep === 3) {
       const images = parseImages(productForm.images);
       if (images.length === 0) {
-        alert("Please add at least one image URL");
+        alert("Please add at least one image");
         return;
       }
     }
@@ -592,18 +697,6 @@ export default function AdminPage() {
     setProductStep(0);
   };
 
-  const toDescriptionHtml = (value: string) => {
-    const escaped = value
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    const withItalic = withBold.replace(/\*(.+?)\*/g, "<em>$1</em>");
-    const withLines = withItalic.replace(/(^|\n)-\s+(.*)/g, "$1<li>$2</li>");
-    const wrappedLists = withLines.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul class=\"list-disc pl-5 space-y-1 text-sm text-gray-700\">$1</ul>");
-    return wrappedLists.replace(/\n/g, "<br />");
-  };
-
   const populateForm = (product: Product) => {
     setProductForm({
       id: product.id,
@@ -626,6 +719,7 @@ export default function AdminPage() {
   const handleCreateOrUpdate = async () => {
     const name = productForm.name.trim();
     const category = productForm.category.trim();
+    const description = renderDescriptionHtml(productForm.description);
     const price = Number(productForm.price) || 0;
     const colors = parseList(productForm.colors);
     const sizes = parseList(productForm.sizes);
@@ -645,8 +739,12 @@ export default function AdminPage() {
       alert("Price must be greater than 0");
       return;
     }
+    if (!description.replace(/<[^>]*>/g, "").trim()) {
+      alert("Description is required");
+      return;
+    }
     if (images.length === 0) {
-      alert("Please add at least one image URL");
+      alert("Please add at least one image");
       return;
     }
 
@@ -655,7 +753,7 @@ export default function AdminPage() {
         id: productForm.id || slugify(productForm.name || "new-product"),
         name,
         slug: slugify(name || "new-product"),
-        description: productForm.description,
+        description,
         category,
         price,
         originalPrice: productForm.originalPrice ? Number(productForm.originalPrice) : undefined,
@@ -679,7 +777,7 @@ export default function AdminPage() {
     } else if (formMode === "edit" && selectedProduct) {
       const updates: Partial<Product> = {
         name,
-        description: productForm.description,
+        description,
         category,
         price,
         originalPrice: productForm.originalPrice ? Number(productForm.originalPrice) : undefined,
@@ -708,67 +806,53 @@ export default function AdminPage() {
     setTimeout(() => setFlash(null), 1600);
   };
 
-  const resizeImageToDataUrl = (file: File, maxSize = 1400) =>
-    new Promise<string>((resolve, reject) => {
-      if (!file.type.startsWith("image/")) {
-        reject(new Error("Unsupported file type"));
-        return;
-      }
+  const uploadImageToStorage = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Unsupported file type");
+    }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new window.Image();
-        img.onload = () => {
-          const width = img.width || maxSize;
-          const height = img.height || maxSize;
-          let targetWidth = width;
-          let targetHeight = height;
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const inferredContentTypes: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      gif: "image/gif",
+      avif: "image/avif",
+      svg: "image/svg+xml",
+    };
+    const contentType = file.type || inferredContentTypes[extension];
+    const uniqueId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const filePath = `uploads/${uniqueId}.${extension}`;
 
-          if (width >= height && width > maxSize) {
-            targetWidth = maxSize;
-            targetHeight = Math.round((height / width) * maxSize);
-          } else if (height > width && height > maxSize) {
-            targetHeight = maxSize;
-            targetWidth = Math.round((width / height) * maxSize);
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            reject(new Error("Failed to resize image"));
-            return;
-          }
-          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-          const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
-          const dataUrl = canvas.toDataURL(mimeType, mimeType === "image/jpeg" ? 0.9 : undefined);
-          resolve(dataUrl);
-        };
-        img.onerror = () => reject(new Error("Failed to load image"));
-        img.src = String(reader.result);
-      };
-      reader.onerror = () => reject(new Error("Failed to read image"));
-      reader.readAsDataURL(file);
+    const { error } = await supabase.storage.from("products").upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      ...(contentType ? { contentType } : {}),
     });
+
+    if (error) {
+      console.error("Storage upload failed", { filePath, error });
+      throw new Error(error.message || "Failed to upload image");
+    }
+
+    const { data } = supabase.storage.from("products").getPublicUrl(filePath);
+    if (!data?.publicUrl) {
+      throw new Error("Failed to get public image URL");
+    }
+
+    return data.publicUrl;
+  };
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploadingImages(true);
     try {
       const results = await Promise.allSettled(
-        Array.from(files).map(async (file) => {
-          try {
-            return await resizeImageToDataUrl(file);
-          } catch {
-            return await new Promise<string>((resolve, reject) => {
-              const fallbackReader = new FileReader();
-              fallbackReader.onload = () => resolve(String(fallbackReader.result));
-              fallbackReader.onerror = () => reject(new Error("Failed to read image"));
-              fallbackReader.readAsDataURL(file);
-            });
-          }
-        })
+        Array.from(files).map((file) => uploadImageToStorage(file))
       );
 
       const dataUrls = results
@@ -810,32 +894,88 @@ export default function AdminPage() {
     }
   };
 
-
-  const handleOrderStatusUpdate = async (orderId: string, status: OrderStatus, awb?: string) => {
-    if (status === "shipped" && !awb?.trim()) {
-      alert("AWB Number is required to mark order as shipped");
+  const handleCreateCategory = async () => {
+    const name = categoryName.trim();
+    if (!name) {
+      setFlash("Category name is required.");
       return;
     }
+    setCategorySaving(true);
     try {
-      const updated = await updateOrderStatus(orderId, status, awb);
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || "Failed to create category.");
+      }
+      setCategoryName("");
+      await loadCategories();
+      setFlash("Category created.");
+      setTimeout(() => setFlash(null), 1600);
+    } catch (error) {
+      setFlash((error as Error).message);
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: number) => {
+    if (!confirm("Delete this category?")) return;
+    try {
+      const response = await fetch(`/api/categories?id=${categoryId}`, { method: "DELETE" });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || "Failed to delete category.");
+      }
+      await loadCategories();
+      setFlash("Category deleted.");
+      setTimeout(() => setFlash(null), 1600);
+    } catch (error) {
+      setFlash((error as Error).message);
+    }
+  };
+
+
+  const handleOrderStatusUpdate = async (
+    orderId: string,
+    status: OrderStatus,
+    awb?: string,
+    courier?: string
+  ) => {
+    if (status === "shipped" && !awb?.trim()) {
+      alert("AWB Number is required to mark order as shipped");
+      return null;
+    }
+    if (status === "shipped" && !courier?.trim()) {
+      alert("Courier name is required to mark order as shipped");
+      return null;
+    }
+    try {
+      const updated = await updateOrderStatus(orderId, status, awb, courier);
       if (updated && selectedOrder?.id === orderId) {
         setSelectedOrder(updated);
         setAwbNumber(updated.awbNumber || "");
+        setCourierName(updated.courierName || "");
       }
-      if (awb) {
-        setFlash(`Order ${orderId} updated to ${status} with AWB: ${awb}`);
-      } else {
-        setFlash(`Order ${orderId} updated to ${status}`);
-      }
+      const detail = [awb ? `AWB: ${awb}` : null, courier ? `Courier: ${courier}` : null]
+        .filter(Boolean)
+        .join(" · ");
+      setFlash(`Order ${orderId} updated to ${status}${detail ? ` (${detail})` : ""}`);
       setTimeout(() => setFlash(null), 2000);
+      return updated;
     } catch (error) {
       setFlash((error as Error).message);
+      return null;
     }
   };
 
   const openOrderDetail = (order: Order) => {
     setSelectedOrder(order);
     setAwbNumber(order.awbNumber || "");
+    setCourierName(order.courierName || "");
     setShowOrderDetail(true);
   };
 
@@ -911,6 +1051,20 @@ export default function AdminPage() {
           </button>
 
           <button
+            onClick={() => setCurrentView("categories")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              currentView === "categories"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            Categories
+          </button>
+
+          <button
             onClick={() => setCurrentView("orders")}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
               currentView === "orders"
@@ -979,6 +1133,21 @@ export default function AdminPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m22 6-10 7L2 6" />
             </svg>
             Newsletter Emails
+          </button>
+
+          <button
+            onClick={() => setCurrentView("contact")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              currentView === "contact"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16v12H4z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m22 8-10 6L2 8" />
+            </svg>
+            Contact Messages
           </button>
 
           <Link
@@ -1309,18 +1478,95 @@ export default function AdminPage() {
                             >
                               Edit
                             </button>
-                            <button
-                              className="text-red-600 hover:text-red-900"
-                              onClick={() => handleDelete(product)}
-                            >
-                              Delete
-                            </button>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+              </div>
+            </>
+          )}
+
+          {currentView === "categories" && (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
+                  <p className="text-sm text-gray-500 mt-1">{categoryItems.length} total categories</p>
+                </div>
+                <button
+                  onClick={loadCategories}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-lg font-bold text-gray-900">Category List</h2>
+                    <span className="text-xs text-gray-500">{categoryItems.length} items</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px]">
+                      <thead className="bg-slate-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {categoryItems.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-6 py-6 text-center text-sm text-gray-500">
+                              No categories yet.
+                            </td>
+                          </tr>
+                        )}
+                        {categoryItems.map((category) => (
+                          <tr key={category.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{category.name}</td>
+                            <td className="px-6 py-4 text-xs text-gray-500">{category.slug}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCategory(category.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h2 className="text-lg font-bold text-gray-900">Add Category</h2>
+                  <p className="text-xs text-gray-500 mt-1">Create a new category for products.</p>
+                  <label className="mt-4 block text-sm font-medium text-gray-700">
+                    Category name
+                    <input
+                      className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      value={categoryName}
+                      onChange={(event) => setCategoryName(event.target.value)}
+                      placeholder="e.g., Utility Sets"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCreateCategory}
+                    disabled={categorySaving}
+                    className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {categorySaving ? "Saving..." : "Create Category"}
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -1353,7 +1599,10 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     )}
-                    {orders.map((order) => (
+                    {orders.map((order) => {
+                      const draftStatus = orderStatusDrafts[order.id] ?? order.status;
+                      const statusDirty = draftStatus !== order.status;
+                      return (
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
@@ -1391,8 +1640,13 @@ export default function AdminPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
-                            value={order.status}
-                            onChange={(e) => handleOrderStatusUpdate(order.id, e.target.value as OrderStatus)}
+                            value={draftStatus}
+                            onChange={(e) =>
+                              setOrderStatusDrafts((prev) => ({
+                                ...prev,
+                                [order.id]: e.target.value as OrderStatus,
+                              }))
+                            }
                             className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
                           >
                             {statuses.map((status) => (
@@ -1403,23 +1657,30 @@ export default function AdminPage() {
                           </select>
                           <button
                             onClick={async () => {
-                              if (confirm(`Delete order ${order.id}? This cannot be undone.`)) {
-                                try {
-                                  await deleteOrder(order.id);
-                                  setFlash(`Order ${order.id} deleted`);
-                                  setTimeout(() => setFlash(null), 2000);
-                                } catch (error) {
-                                  setFlash((error as Error).message);
-                                }
+                              try {
+                                await handleOrderStatusUpdate(order.id, draftStatus);
+                                setOrderStatusDrafts((prev) => {
+                                  const next = { ...prev };
+                                  delete next[order.id];
+                                  return next;
+                                });
+                              } catch (error) {
+                                setFlash((error as Error).message);
                               }
                             }}
-                            className="ml-2 text-xs text-red-600 hover:text-red-900 font-medium"
+                            disabled={!statusDirty}
+                            className={`ml-2 text-xs font-medium ${
+                              statusDirty
+                                ? "text-indigo-600 hover:text-indigo-900"
+                                : "text-gray-400 cursor-not-allowed"
+                            }`}
                           >
-                            Delete
+                            Update
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1478,25 +1739,6 @@ export default function AdminPage() {
                             onClick={() => openCustomerDetail(customer)}
                           >
                             View Details
-                          </button>
-                          <button
-                            className="text-red-600 hover:text-red-900"
-                            onClick={async () => {
-                              if (confirm(`Delete customer ${customer.email} and all their orders? This cannot be undone.`)) {
-                                try {
-                                  await deleteCustomer(customer.email);
-                                  setProfiles((prev) =>
-                                    prev.filter((profile) => profile.email.toLowerCase() !== customer.email.toLowerCase())
-                                  );
-                                  setFlash(`Customer ${customer.email} deleted`);
-                                  setTimeout(() => setFlash(null), 2000);
-                                } catch (error) {
-                                  setFlash((error as Error).message);
-                                }
-                              }
-                            }}
-                          >
-                            Delete
                           </button>
                         </td>
                       </tr>
@@ -1828,6 +2070,62 @@ export default function AdminPage() {
               </div>
             </>
           )}
+
+          {currentView === "contact" && (
+            <>
+              <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900">Contact Messages</h1>
+                <p className="text-sm text-gray-500 mt-1">Customer inquiries from the contact form</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-900">Messages</h2>
+                  <span className="text-xs text-gray-500">{contactMessages.length} total</span>
+                </div>
+
+                <div className="mt-4 max-h-[520px] overflow-x-auto overflow-y-auto border border-gray-100 rounded-lg">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Name
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Email
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Message
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Date
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {contactMessages.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-500">
+                            No contact messages yet.
+                          </td>
+                        </tr>
+                      )}
+                      {contactMessages.map((entry) => (
+                        <tr key={entry.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{entry.name}</td>
+                          <td className="px-4 py-3 text-gray-700">{entry.email}</td>
+                          <td className="px-4 py-3 text-gray-600 max-w-[360px]">
+                            <span className="line-clamp-2">{entry.message}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{formatDateTime(entry.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </main>
 
@@ -1950,63 +2248,94 @@ export default function AdminPage() {
                     </label>
                     <label className="text-sm font-medium text-gray-700">
                       Category
-                      <input
+                      <select
                         className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                         value={productForm.category}
                         onChange={(event) => setProductForm((prev) => ({ ...prev, category: event.target.value }))}
-                      />
+                      >
+                        <option value="">Select a category</option>
+                        {categoryOptions.length === 0 && (
+                          <option value="" disabled>
+                            No categories yet
+                          </option>
+                        )}
+                        {categoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Manage categories in the Categories section.
+                      </p>
                     </label>
 
                     <label className="text-sm font-medium text-gray-700 md:col-span-2">
                       Description
-                      <textarea
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                        rows={4}
-                        value={productForm.description}
-                        onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
-                      />
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
                         <span className="font-semibold text-gray-700">Formatting:</span>
                         <button
                           type="button"
                           className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() =>
-                            setProductForm((prev) => ({
-                              ...prev,
-                              description: prev.description
-                                ? `${prev.description}\n- Point 1\n- Point 2\n- Point 3`
-                                : "- Point 1\n- Point 2\n- Point 3",
-                            }))
-                          }
+                          onClick={() => applyDescriptionCommand("bold")}
                         >
-                          Bullet template
+                          Bold
                         </button>
                         <button
                           type="button"
                           className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() =>
-                            setProductForm((prev) => ({
-                              ...prev,
-                              description: `${prev.description} **Bold text** *Italic text*`,
-                            }))
-                          }
+                          onClick={() => applyDescriptionCommand("italic")}
                         >
-                          Add bold/italic
+                          Italic
                         </button>
                         <button
                           type="button"
                           className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => setDescriptionPreview((prev) => !prev)}
+                          onClick={() => applyDescriptionCommand("insertUnorderedList")}
                         >
-                          {descriptionPreview ? "Hide preview" : "Show preview"}
+                          Bullets
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => applyDescriptionCommand("insertOrderedList")}
+                        >
+                          Numbered
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => {
+                            const url = window.prompt("Enter a URL");
+                            if (url) applyDescriptionCommand("createLink", url);
+                          }}
+                        >
+                          Link
                         </button>
                       </div>
-                      {descriptionPreview && (
-                        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-800 shadow-sm">
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 font-semibold mb-1">Preview</p>
-                          <div dangerouslySetInnerHTML={{ __html: toDescriptionHtml(productForm.description) || "<em>No description</em>" }} />
-                        </div>
-                      )}
+                      <div
+                        ref={descriptionEditorRef}
+                        className="mt-2 min-h-[140px] w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none"
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={(event) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            description: event.currentTarget?.innerHTML ?? "",
+                          }))
+                        }
+                        onBlur={(event) => {
+                          const html = event.currentTarget?.innerHTML ?? "";
+                          const sanitized = renderDescriptionHtml(html);
+                          setProductForm((prev) => ({ ...prev, description: sanitized }));
+                          if (event.currentTarget) {
+                            event.currentTarget.innerHTML = sanitized;
+                          }
+                        }}
+                      />
+                      <p className="mt-2 text-xs text-gray-500">
+                        Use the toolbar to format text. Formatting is saved with the product.
+                      </p>
                     </label>
                   </div>
                 </div>
@@ -2103,100 +2432,74 @@ export default function AdminPage() {
                       onChange={(event) => setProductForm((prev) => ({ ...prev, badge: event.target.value }))}
                     />
                   </label>
-                </div>
               )}
 
               {productStep === 3 && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">Images</p>
-                        <p className="text-xs text-gray-500">
-                          {parseImages(productForm.images).length} image(s) attached
-                        </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        <span className="font-semibold text-gray-700">Formatting:</span>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => applyDescriptionCommand("bold")}
+                        >
+                          Bold
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => applyDescriptionCommand("italic")}
+                        >
+                          Italic
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => applyDescriptionCommand("insertUnorderedList")}
+                        >
+                          Bullets
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => applyDescriptionCommand("insertOrderedList")}
+                        >
+                          Numbered
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
+                          onClick={() => {
+                            const url = window.prompt("Enter a URL");
+                            if (url) applyDescriptionCommand("createLink", url);
+                          }}
+                        >
+                          Link
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="text-xs font-semibold text-gray-600 hover:text-black"
-                        onClick={() => setShowRawImages((prev) => !prev)}
-                      >
-                        {showRawImages ? "Hide raw URLs" : "Show raw URLs"}
-                      </button>
-                    </div>
-
-                    {showRawImages && (
-                      <label className="mt-3 block text-xs font-medium text-gray-600">
-                        Raw image URLs (comma, semicolon, or newline)
-                        <textarea
-                          className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-xs focus:border-indigo-500 focus:outline-none"
-                          rows={3}
-                          value={productForm.images}
-                          onChange={(event) => setProductForm((prev) => ({ ...prev, images: event.target.value }))}
-                        />
-                      </label>
-                    )}
-                  </div>
-
-                  <label className="text-sm font-medium text-gray-700">
-                    Upload Images
-                    <div
-                      className={`mt-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center text-sm transition ${
-                        dragActive
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-gray-200 bg-white hover:border-indigo-300"
-                      } ${uploadingImages ? "opacity-70 cursor-not-allowed" : ""}`}
-                      aria-busy={uploadingImages}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        setDragActive(true);
-                      }}
-                      onDragLeave={() => setDragActive(false)}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        setDragActive(false);
-                        if (event.dataTransfer?.files?.length) {
-                          handleImageUpload(event.dataTransfer.files);
+                      <div
+                        ref={descriptionEditorRef}
+                        className="mt-2 min-h-[140px] w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none"
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={(event) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            description: event.currentTarget?.innerHTML ?? "",
+                          }))
                         }
-                      }}
-                      onPaste={(event) => {
-                        if (event.clipboardData?.files?.length) {
-                          handleImageUpload(event.clipboardData.files);
-                        }
-                      }}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        id="product-image-upload"
-                        onChange={(event) => handleImageUpload(event.target.files)}
-                        disabled={uploadingImages}
+                        onBlur={(event) => {
+                          const html = event.currentTarget?.innerHTML ?? "";
+                          const sanitized = renderDescriptionHtml(html);
+                          setProductForm((prev) => ({ ...prev, description: sanitized }));
+                          if (event.currentTarget) {
+                            event.currentTarget.innerHTML = sanitized;
+                          }
+                        }}
                       />
-                      <label
-                        htmlFor="product-image-upload"
-                        className={`cursor-pointer ${uploadingImages ? "pointer-events-none" : ""}`}
-                      >
-                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                          ⬆️
-                        </div>
-                        <p className="mt-3 font-semibold text-gray-700">Click to upload or drag & drop</p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {uploadingImages ? "Uploading and resizing images..." : "You can also paste images here."}
-                        </p>
-                      </label>
-                    </div>
-                    <span className="mt-2 block text-xs text-gray-500">
-                      Images are auto-resized to a max 1400px edge and stored as data URLs. For best performance, use optimized image URLs.
-                    </span>
-                    <div className="mt-3 flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-center">
-                      <input
-                        type="url"
-                        placeholder="Paste image URL and click add"
-                        value={imageLinkInput}
-                        onChange={(event) => setImageLinkInput(event.target.value)}
-                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                      <p className="mt-2 text-xs text-gray-500">
+                        Use the toolbar to format text. Formatting is saved with the product.
+                      </p>
                       />
                       <button
                         type="button"
@@ -2216,14 +2519,26 @@ export default function AdminPage() {
                     </div>
                   </label>
 
-                  {parseImages(productForm.images).length > 0 && (
+                  {previewImages.length > 0 && (
                     <div className="rounded-xl border border-gray-200 p-4">
                       <p className="text-xs font-semibold text-gray-600 uppercase tracking-[0.2em]">Preview</p>
+                      <p className="mt-1 text-xs text-gray-500">Reorder with up/down or remove images.</p>
                       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {parseImages(productForm.images)
-                          .slice(0, 6)
-                          .map((src, index) => (
-                            <div key={`${src}-${index}`} className="aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50 relative">
+                        {previewImages.map((src, index) => (
+                          <div
+                            key={`${src}-${index}`}
+                            className="group aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-50 relative"
+                          >
+                            {src.startsWith("data:image") ? (
+                              <Image
+                                src={src}
+                                alt={`Upload ${index + 1}`}
+                                fill
+                                sizes="(min-width: 640px) 120px, 50vw"
+                                unoptimized
+                                className="object-cover"
+                              />
+                            ) : (
                               <Image
                                 src={src}
                                 alt={`Upload ${index + 1}`}
@@ -2232,8 +2547,36 @@ export default function AdminPage() {
                                 quality={75}
                                 className="object-cover"
                               />
+                            )}
+                            <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2 rounded-md bg-white/95 px-2 py-1 text-[11px] font-semibold text-gray-700 opacity-0 transition group-hover:opacity-100">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  className="rounded border border-gray-200 bg-white px-2 py-1 text-[10px] disabled:opacity-40"
+                                  onClick={() => moveImage(index, -1)}
+                                  disabled={index === 0}
+                                >
+                                  Up
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded border border-gray-200 bg-white px-2 py-1 text-[10px] disabled:opacity-40"
+                                  onClick={() => moveImage(index, 1)}
+                                  disabled={index === imageList.length - 1}
+                                >
+                                  Down
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                className="rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-600"
+                                onClick={() => deleteImage(index)}
+                              >
+                                Remove
+                              </button>
                             </div>
-                          ))}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -2311,6 +2654,15 @@ export default function AdminPage() {
                   >
                     Back
                   </button>
+                  {formMode === "edit" && selectedProduct && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(selectedProduct)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  )}
                   {productStep < lastProductStep ? (
                     <button
                       type="button"
@@ -2358,12 +2710,30 @@ export default function AdminPage() {
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Order Details</p>
                 <h3 className="text-xl font-bold text-gray-900">Order #{selectedOrder.id}</h3>
               </div>
-              <button
-                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => setShowOrderDetail(false)}
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded-full border border-red-200 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50"
+                  onClick={async () => {
+                    if (!confirm(`Delete order ${selectedOrder.id}? This cannot be undone.`)) return;
+                    try {
+                      await deleteOrder(selectedOrder.id);
+                      setShowOrderDetail(false);
+                      setFlash(`Order ${selectedOrder.id} deleted`);
+                      setTimeout(() => setFlash(null), 2000);
+                    } catch (error) {
+                      setFlash((error as Error).message);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+                <button
+                  className="rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowOrderDetail(false)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <div className="px-6 py-6 space-y-6">
@@ -2395,6 +2765,18 @@ export default function AdminPage() {
                     }`}>
                       {selectedOrder.status}
                     </span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Courier</p>
+                  <p className="text-sm font-medium text-gray-900 mt-1">
+                    {selectedOrder.courierName || "Not assigned"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">AWB</p>
+                  <p className="text-sm font-medium text-gray-900 mt-1">
+                    {selectedOrder.awbNumber || "Not assigned"}
                   </p>
                 </div>
               </div>
@@ -2450,41 +2832,31 @@ export default function AdminPage() {
                     {selectedOrder.paymentVerified ? "Verified" : "Pending"}
                   </span>
                 </div>
-                {selectedOrder.paymentProof ? (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      <img
-                        src={selectedOrder.paymentProof}
-                        alt="Payment proof"
-                        className="w-full max-h-80 object-contain rounded-md bg-white"
-                      />
-                    </div>
-                    <div className="space-y-3">
-                      <p className="text-xs text-gray-500">
-                        Verify the UPI screenshot before marking payment as paid.
-                      </p>
-                      <button
-                        type="button"
-                        className="w-full rounded-full bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-900 disabled:opacity-60"
-                        disabled={selectedOrder.paymentVerified}
-                        onClick={async () => {
-                          try {
-                            const updated = await verifyPayment(selectedOrder.id, true);
-                            setSelectedOrder(updated ?? selectedOrder);
-                          } catch (error) {
-                            setFlash((error as Error).message);
-                          }
-                        }}
-                      >
-                        {selectedOrder.paymentVerified ? "Payment Verified" : "Verify Payment"}
-                      </button>
-                    </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+                    Payment screenshots are not collected. Verify payment manually before marking as paid.
                   </div>
-                ) : (
-                  <div className="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-                    No payment screenshot attached.
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Mark the order as paid once the payment is confirmed.
+                    </p>
+                    <button
+                      type="button"
+                      className="w-full rounded-full bg-black px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-900 disabled:opacity-60"
+                      disabled={selectedOrder.paymentVerified}
+                      onClick={async () => {
+                        try {
+                          const updated = await verifyPayment(selectedOrder.id, true);
+                          setSelectedOrder(updated ?? selectedOrder);
+                        } catch (error) {
+                          setFlash((error as Error).message);
+                        }
+                      }}
+                    >
+                      {selectedOrder.paymentVerified ? "Payment Verified" : "Verify Payment"}
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Order Status Management */}
@@ -2697,13 +3069,20 @@ export default function AdminPage() {
                       <label className="text-sm font-bold text-amber-900">Ship This Order</label>
                     </div>
                     <p className="text-xs text-amber-700 mb-3">Enter the AWB tracking number to mark order as shipped</p>
-                    <div className="flex gap-2">
+                    <div className="grid gap-2 md:grid-cols-[1.2fr_1fr_auto]">
+                      <input
+                        type="text"
+                        value={courierName}
+                        onChange={(e) => setCourierName(e.target.value)}
+                        placeholder="Courier name"
+                        className="rounded-lg border border-amber-300 px-4 py-2 text-sm focus:border-amber-500 focus:outline-none bg-white"
+                      />
                       <input
                         type="text"
                         value={awbNumber}
                         onChange={(e) => setAwbNumber(e.target.value)}
-                        placeholder="e.g., 1234567890AB"
-                        className="flex-1 rounded-lg border border-amber-300 px-4 py-2 text-sm focus:border-amber-500 focus:outline-none bg-white"
+                        placeholder="AWB number"
+                        className="rounded-lg border border-amber-300 px-4 py-2 text-sm focus:border-amber-500 focus:outline-none bg-white"
                       />
                       <button
                         onClick={() => {
@@ -2711,9 +3090,14 @@ export default function AdminPage() {
                             alert("Please enter AWB number");
                             return;
                           }
-                          handleOrderStatusUpdate(selectedOrder.id, "shipped", awbNumber);
-                          setSelectedOrder({ ...selectedOrder, status: "shipped", awbNumber });
+                          if (!courierName.trim()) {
+                            alert("Please enter courier name");
+                            return;
+                          }
+                          handleOrderStatusUpdate(selectedOrder.id, "shipped", awbNumber, courierName);
+                          setSelectedOrder({ ...selectedOrder, status: "shipped", awbNumber, courierName });
                           setAwbNumber("");
+                          setCourierName("");
                         }}
                         className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition flex items-center gap-2"
                       >
@@ -2759,12 +3143,33 @@ export default function AdminPage() {
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Customer Profile</p>
                 <h3 className="text-xl font-bold text-gray-900">{selectedCustomer.name}</h3>
               </div>
-              <button
-                className="rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => setShowCustomerDetail(false)}
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded-full border border-red-200 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50"
+                  onClick={async () => {
+                    if (!confirm(`Delete customer ${selectedCustomer.email} and all their orders? This cannot be undone.`)) return;
+                    try {
+                      await deleteCustomer(selectedCustomer.email);
+                      setProfiles((prev) =>
+                        prev.filter((profile) => profile.email.toLowerCase() !== selectedCustomer.email.toLowerCase())
+                      );
+                      setShowCustomerDetail(false);
+                      setFlash(`Customer ${selectedCustomer.email} deleted`);
+                      setTimeout(() => setFlash(null), 2000);
+                    } catch (error) {
+                      setFlash((error as Error).message);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+                <button
+                  className="rounded-full border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowCustomerDetail(false)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <div className="px-6 py-6 space-y-6">

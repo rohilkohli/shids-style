@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { slugify } from "@/app/lib/utils";
 import type { Product } from "@/app/lib/types";
 
@@ -57,6 +58,32 @@ const mapProductRow = (row: ProductRow): Product => ({
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
 });
 
+// [NEW] Helper to check if user is admin
+async function checkAdmin(request: NextRequest) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let resolvedUser = user;
+
+  if (!resolvedUser) {
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data } = await supabaseAdmin.auth.getUser(token);
+      resolvedUser = data.user ?? null;
+    }
+  }
+
+  if (!resolvedUser) return false;
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", resolvedUser.id)
+    .single();
+
+  return profile?.role === "admin";
+}
+
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const resolved = await params;
   const rawId = resolved?.id ?? "";
@@ -76,6 +103,11 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // [NEW] Security Check
+  if (!await checkAdmin(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await request.json()) as Partial<Product>;
   const resolved = await params;
   const rawId = resolved?.id ?? "";
@@ -137,10 +169,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   return NextResponse.json({ ok: true, data: mapProductRow(data) });
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // [NEW] Security Check
+  if (!await checkAdmin(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const resolved = await params;
   const rawId = resolved?.id ?? "";
-  const lookupSource = rawId || _.nextUrl.pathname.split("/").pop() || "";
+  const lookupSource = rawId || request.nextUrl.pathname.split("/").pop() || "";
   const lookup = decodeURIComponent(lookupSource).replace(/\s/g, "+").trim();
 
   const { data: row } = await supabaseAdmin

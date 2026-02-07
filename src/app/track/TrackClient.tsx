@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Order } from "../lib/types";
@@ -13,25 +13,21 @@ export default function TrackClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
+  const autoTrackedRef = useRef(false);
+  const formatStatus = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+  const formatOrderId = (value: string) => (value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-6)}` : value);
 
-  useEffect(() => {
-    const orderIdParam = searchParams.get("orderId") ?? "";
-    const emailParam = searchParams.get("email") ?? "";
-    if (orderIdParam || emailParam) {
-      setOrderId(orderIdParam);
-      setEmail(emailParam);
-    }
-  }, [searchParams]);
-
-  const handleTrack = async () => {
+  const handleTrack = useCallback(async (nextOrderId?: string, nextEmail?: string) => {
     setLoading(true);
     setError(null);
     setOrder(null);
     try {
+      const resolvedOrderId = String(nextOrderId ?? orderId ?? "").trim().toLowerCase();
+      const resolvedEmail = String(nextEmail ?? email ?? "").trim().toLowerCase();
       const response = await fetch("/api/orders/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, email }),
+        body: JSON.stringify({ orderId: resolvedOrderId, email: resolvedEmail }),
       });
       const json = await response.json();
       if (!response.ok || !json.ok) {
@@ -43,7 +39,20 @@ export default function TrackClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, orderId]);
+
+  useEffect(() => {
+    const orderIdParam = searchParams.get("orderId") ?? "";
+    const emailParam = searchParams.get("email") ?? "";
+    if (orderIdParam || emailParam) {
+      setOrderId(orderIdParam);
+      setEmail(emailParam);
+    }
+    if (orderIdParam && emailParam && !autoTrackedRef.current) {
+      autoTrackedRef.current = true;
+      void handleTrack(orderIdParam, emailParam);
+    }
+  }, [handleTrack, searchParams]);
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
@@ -81,7 +90,7 @@ export default function TrackClient() {
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-              onClick={handleTrack}
+              onClick={() => handleTrack()}
               disabled={!orderId.trim() || !email.trim() || loading}
             >
               {loading ? "Checking..." : "Track Order"}
@@ -104,24 +113,34 @@ export default function TrackClient() {
             <div className="mt-8 rounded-xl border border-gray-100 bg-gray-50/80 p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">Order #{order.id}</p>
+                  <p className="text-sm font-semibold text-gray-900">Order #{formatOrderId(order.id)}</p>
                   <p className="text-xs text-gray-500">Placed {formatDateTime(order.createdAt)}</p>
                 </div>
                 <span className="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded-full bg-black text-white">
-                  {order.status}
+                  {formatStatus(order.status)}
                 </span>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
+              <div className="mt-4 grid gap-3 sm:grid-cols-5 text-sm">
                 <div className="rounded-lg bg-white p-3 border border-gray-100">
                   <p className="text-xs uppercase tracking-wider text-gray-500">Total</p>
                   <p className="text-base font-semibold text-gray-900 mt-1">{formatCurrency(order.total)}</p>
+                </div>
+                <div className="rounded-lg bg-white p-3 border border-gray-100">
+                  <p className="text-xs uppercase tracking-wider text-gray-500">Status</p>
+                  <p className="text-base font-semibold text-gray-900 mt-1">
+                    {formatStatus(order.status)}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-white p-3 border border-gray-100">
                   <p className="text-xs uppercase tracking-wider text-gray-500">Payment</p>
                   <p className="text-base font-semibold text-gray-900 mt-1">
                     {order.paymentVerified ? "Verified" : "Pending"}
                   </p>
+                </div>
+                <div className="rounded-lg bg-white p-3 border border-gray-100">
+                  <p className="text-xs uppercase tracking-wider text-gray-500">Courier</p>
+                  <p className="text-base font-semibold text-gray-900 mt-1">{order.courierName || "Not assigned"}</p>
                 </div>
                 <div className="rounded-lg bg-white p-3 border border-gray-100">
                   <p className="text-xs uppercase tracking-wider text-gray-500">AWB</p>

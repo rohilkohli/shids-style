@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { slugify } from "@/app/lib/utils";
 import type { Product } from "@/app/lib/types";
 
@@ -59,14 +60,42 @@ const mapProductRow = (row: ProductRow): Product => ({
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
 });
 
+// [NEW] Helper to check if user is admin
+async function checkAdmin(request: NextRequest) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let resolvedUser = user;
+
+  if (!resolvedUser) {
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data } = await supabaseAdmin.auth.getUser(token);
+      resolvedUser = data.user ?? null;
+    }
+  }
+
+  if (!resolvedUser) return false;
+
+  // Check the role in the 'profiles' table
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", resolvedUser.id)
+    .single();
+
+  return profile?.role === "admin";
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const search = searchParams.get("search")?.trim();
   const category = searchParams.get("category")?.trim();
-  const limit = Math.min(Number(searchParams.get("limit") ?? 50), 100);
-  const offset = Math.max(Number(searchParams.get("offset") ?? 0), 0);
+  const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 12), 1), 100);
+  const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
+  const offset = (page - 1) * limit;
 
-  let query = supabaseAdmin.from("products").select("*");
+  let query = supabaseAdmin.from("products").select("*", { count: "exact" });
   if (search) {
     query = query.or(`name.ilike.%${search}%,category.ilike.%${search}%`);
   }
@@ -74,7 +103,7 @@ export async function GET(request: NextRequest) {
     query = query.eq("category", category);
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -82,10 +111,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, data: (data ?? []).map(mapProductRow) });
+  return NextResponse.json({
+    ok: true,
+    data: {
+      data: (data ?? []).map(mapProductRow),
+      count: count ?? 0,
+      page,
+      limit,
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {
+  // [NEW] Security Check
+  if (!await checkAdmin(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await request.json()) as Partial<Product> & { slug?: string };
 
   const name = body.name?.trim();

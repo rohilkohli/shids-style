@@ -1,3 +1,12 @@
+// [NEW] Define what a Variant looks like
+export type Variant = {
+  id: number;
+  productId: string;
+  size: string;
+  color: string;
+  stock: number;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -15,6 +24,15 @@ export type Product = {
   description: string;
   highlights: string[];
   images: string[];
+  // [NEW] Add variants list to Product
+  variants?: Variant[];
+};
+
+export type Category = {
+  id: number;
+  name: string;
+  slug: string;
+  createdAt?: string;
 };
 
 export type CartItem = {
@@ -22,6 +40,8 @@ export type CartItem = {
   quantity: number;
   color?: string;
   size?: string;
+  // [NEW] Add variantId to CartItem
+  variantId?: number;
 };
 
 export type OrderStatus = "pending" | "processing" | "paid" | "packed" | "fulfilled" | "shipped" | "cancelled";
@@ -31,6 +51,8 @@ export type Order = {
   items: CartItem[];
   subtotal?: number;
   shippingFee?: number;
+  discountCode?: string;
+  discountAmount?: number;
   total: number;
   email: string;
   address: string;
@@ -38,7 +60,7 @@ export type Order = {
   createdAt: string;
   notes?: string;
   awbNumber?: string;
-  paymentProof?: string;
+  courierName?: string;
   paymentVerified?: boolean;
 };
 
@@ -68,5 +90,11 @@ export type User = {
   email: string;
   name: string;
   phone?: string;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   role?: "admin" | "customer";
 };
