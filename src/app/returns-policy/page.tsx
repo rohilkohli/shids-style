@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function ReturnsPolicyPage() {
   return (
@@ -6,6 +7,15 @@ export default function ReturnsPolicyPage() {
       <section className="py-10 sm:py-12">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm space-y-4">
+            <div className="flex justify-center mb-6">
+              <Image
+                src="/Shids-logo.svg"
+                alt="Shids Style"
+                width={240}
+                height={48}
+                className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
+              />
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Returns Policy</h1>
             <p className="text-sm text-gray-600">
               Returns are accepted within 7 days of delivery. Initiate a return by contacting support@shids.style with

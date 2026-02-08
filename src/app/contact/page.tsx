@@ -17,7 +17,7 @@ export default function ContactPage() {
           <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="flex justify-center mb-6">
               <Image
-                src="/shids.svg"
+                src="/Shids-logo.svg"
                 alt="Shids Style"
                 width={240}
                 height={48}

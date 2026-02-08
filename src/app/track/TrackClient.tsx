@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { Order } from "../lib/types";
 import { formatCurrency, formatDateTime } from "../lib/utils";
 
@@ -58,6 +59,15 @@ export default function TrackClient() {
     <main className="min-h-screen bg-[color:var(--background)]">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
         <div className="rounded-2xl border border-gray-100 bg-white/80 p-6 sm:p-8 shadow-sm">
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/Shids-logo.svg"
+              alt="Shids Style"
+              width={240}
+              height={48}
+              className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
+            />
+          </div>
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Track Your Order</h1>
             <p className="text-sm text-gray-600">

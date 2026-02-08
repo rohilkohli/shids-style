@@ -1,9 +1,19 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
     <footer className="bg-black text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+        <div className="flex justify-center mb-8">
+          <Image
+            src="/Shids-logo.svg"
+            alt="Shids Style"
+            width={160}
+            height={32}
+            className="h-8 w-auto max-w-[160px] object-contain"
+          />
+        </div>
         <div id="policies" className="grid grid-cols-2 md:grid-cols-4 gap-5 sm:gap-8">
           <div>
             <h3 className="font-medium mb-4">Help Customers</h3>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import CartDrawer from "../components/CartDrawer";
 
@@ -11,6 +12,15 @@ export default function TermsPage() {
       <section className="py-10 sm:py-14">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-gray-100 p-6 sm:p-8 glass-card space-y-4">
+            <div className="flex justify-center mb-6">
+              <Image
+                src="/Shids-logo.svg"
+                alt="Shids Style"
+                width={240}
+                height={48}
+                className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
+              />
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Terms & Conditions</h1>
             <p className="mt-4 text-sm sm:text-base text-gray-600 leading-relaxed">
               By using SHIDS STYLE, you agree to our terms of service. All purchases are subject to availability and
