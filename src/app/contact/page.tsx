@@ -15,13 +15,13 @@ export default function ContactPage() {
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           {/* UI polish: clarified hierarchy and spacing for contact layout. */}
           <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-8">
               <Image
                 src="/shids-full-size-logo.svg"
                 alt="Shids Style"
-                width={400}
-                height={100}
-                className="h-24 sm:h-28 w-auto max-w-[400px] object-contain"
+                width={500}
+                height={125}
+                className="h-32 sm:h-40 w-auto max-w-[500px] object-contain"
               />
             </div>
             <div className="text-center">
