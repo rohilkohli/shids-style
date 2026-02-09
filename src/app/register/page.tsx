@@ -48,16 +48,30 @@ export default function RegisterPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-rose-400 via-amber-200 to-slate-950">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+        <div className="mb-6 flex items-center justify-center">
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/typographic-logo-shids.svg"
+              alt="Shids Style"
+              width={200}
+              height={50}
+              priority
+              className="h-10 sm:h-12 w-auto"
+            />
+          </Link>
+        </div>
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="hidden lg:flex flex-col justify-between rounded-3xl border border-gray-200 bg-white/70 p-10 shadow-lg">
             <div>
+            <div className="flex justify-center">
               <Image
                 src="/shids-full-size-logo.svg"
                 alt="Shids Style"
-                width={360}
-                height={90}
-                className="h-16 w-auto max-w-[360px]"
+                width={500}
+                height={125}
+                className="h-32 sm:h-40 w-auto max-w-[500px] object-contain"
               />
+            </div>
               <h1 className="mt-4 text-4xl font-bold text-gray-900">Create your account</h1>
               <p className="mt-3 text-sm text-gray-600">
                 Join to track orders, save favorites, and get early access to drops.
