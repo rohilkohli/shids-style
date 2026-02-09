@@ -118,10 +118,10 @@ export default function LoginPage() {
             <Image
               src="/shids-full-size-logo.svg"
               alt="Shids Style"
-              width={280}
-              height={56}
+              width={360}
+              height={90}
               priority
-              className="h-12 sm:h-14 w-auto max-w-[280px]"
+              className="h-16 sm:h-20 w-auto max-w-[360px]"
             />
           </Link>
         </div>
@@ -131,9 +131,9 @@ export default function LoginPage() {
               <Image
                 src="/shids-full-size-logo.svg"
                 alt="Shids Style"
-                width={280}
-                height={56}
-                className="h-12 w-auto max-w-[280px]"
+                width={360}
+                height={90}
+                className="h-16 w-auto max-w-[360px]"
               />
               <h1 className="mt-4 text-4xl font-bold text-gray-900">Welcome back</h1>
               <p className="mt-3 text-sm text-gray-600">

@@ -19,9 +19,9 @@ export default function ContactPage() {
               <Image
                 src="/shids-full-size-logo.svg"
                 alt="Shids Style"
-                width={320}
-                height={80}
-                className="h-16 sm:h-20 w-auto max-w-[320px] object-contain"
+                width={400}
+                height={100}
+                className="h-24 sm:h-28 w-auto max-w-[400px] object-contain"
               />
             </div>
             <div className="text-center">
