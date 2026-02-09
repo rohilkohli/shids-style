@@ -51,7 +51,13 @@ export default function RegisterPage() {
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="hidden lg:flex flex-col justify-between rounded-3xl border border-gray-200 bg-white/70 p-10 shadow-lg">
             <div>
-              <Image src="/shids.svg" alt="Shids Style" width={160} height={32} className="h-7 w-auto max-w-[160px]" />
+              <Image
+                src="/shids-full-size-logo.svg"
+                alt="Shids Style"
+                width={280}
+                height={56}
+                className="h-12 w-auto max-w-[280px]"
+              />
               <h1 className="mt-4 text-4xl font-bold text-gray-900">Create your account</h1>
               <p className="mt-3 text-sm text-gray-600">
                 Join to track orders, save favorites, and get early access to drops.

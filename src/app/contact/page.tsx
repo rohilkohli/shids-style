@@ -17,11 +17,11 @@ export default function ContactPage() {
           <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="flex justify-center mb-6">
               <Image
-                src="/shids.svg"
+                src="/shids-full-size-logo.svg"
                 alt="Shids Style"
-                width={240}
-                height={48}
-                className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
+                width={320}
+                height={80}
+                className="h-16 sm:h-20 w-auto max-w-[320px] object-contain"
               />
             </div>
             <div className="text-center">

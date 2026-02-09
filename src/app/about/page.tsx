@@ -43,7 +43,7 @@ export default function AboutPage() {
                     alt="Founder of SHIDS STYLE"
                     fill
                     sizes="(min-width: 1024px) 360px, (min-width: 768px) 320px, (min-width: 640px) 280px, 100vw"
-                    className="object-cover object-center"
+                    className="object-contain object-center"
                     priority
                   />
                 </div>

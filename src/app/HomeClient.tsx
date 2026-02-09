@@ -579,19 +579,26 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
                 title: "Easy Exchanges",
                 body: "Instant chat support for size swaps and returns.",
                 icon: (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <path d="M21 7H9a4 4 0 1 0 0 8h12" />
-                    <path d="m3 7 3-3m-3 3 3 3m15 7-3 3m3-3-3-3" />
-                  </svg>
+                  <Image
+                    src="/exchange.svg"
+                    alt="Exchange"
+                    width={20}
+                    height={20}
+                    className="h-5 w-5 object-contain"
+                  />
                 ),
               },
               {
                 title: "Cash on Delivery",
                 body: "Secure checkout with COD on most pincodes.",
                 icon: (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <path d="M12 6v12m-4-3a4 4 0 1 0 8 0c0-2-2-3-4-3s-4-1-4-3a4 4 0 0 1 8 0" />
-                  </svg>
+                  <Image
+                    src="/cod.svg"
+                    alt="Cash on Delivery"
+                    width={20}
+                    height={20}
+                    className="h-5 w-5 object-contain"
+                  />
                 ),
               },
             ].map((item) => (

@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "SHIDS STYLE | Elevate Your Style",
   description:
     "SHIDS STYLE is a modern e-commerce experience with elevated essentials, responsive shopping, and an admin cockpit for orders and inventory.",
+  icons: {
+    icon: "/shid-favicon.svg",
+  },
 };
 
 export default function RootLayout({

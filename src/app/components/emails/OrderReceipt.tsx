@@ -51,10 +51,10 @@ export default function OrderReceipt({
           <Section style={styles.section}>
             <Text style={styles.greeting}>Hi {customerName || "there"},</Text>
             <Text style={styles.text}>
-              Thank you for shopping with us! We've received your order and will start processing it right away.
+              Thank you for shopping with us! We&apos;ve received your order and will start processing it right away.
             </Text>
             <Text style={styles.text}>
-              You'll receive another email once your order ships with tracking information.
+              You&apos;ll receive another email once your order ships with tracking information.
             </Text>
           </Section>
 

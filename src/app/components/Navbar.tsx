@@ -76,12 +76,12 @@ export default function Navbar() {
                 className="flex items-center h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded"
               >
                 <Image
-                  src="/shids.svg"
+                  src="/typographic-logo-shids.svg"
                   alt="Shids Style"
-                  width={250}
-                  height={31}
+                  width={220}
+                  height={36}
                   priority
-                  className="h-9 sm:h-12 w-auto max-w-[160px] sm:max-w-[220px] object-contain block"
+                  className="h-8 sm:h-10 w-auto max-w-[170px] sm:max-w-[220px] object-contain block"
                 />
               </Link>
             </div>
