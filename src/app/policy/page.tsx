@@ -35,7 +35,7 @@ export default function PolicyPage() {
             <div className="pt-2 flex flex-wrap items-center gap-3">
               <Link
                 href="/shipping-policy"
-                className="inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                className="inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold !text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
               >
                 Shipping Policy
               </Link>

@@ -89,7 +89,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
   const { sale, compareAt } = getProductPrice(product);
   const isWishlisted = wishlist.includes(product.id);
-  const currentStock = product.stock;
+
+  // Find the matching variant based on selected size and color
+  const selectedVariant = product.variants?.find(
+    (v) => v.size === resolvedSize && v.color === resolvedColor
+  );
+
+  // Use variant stock if available, otherwise fall back to product stock
+  const currentStock = selectedVariant?.stock ?? product.stock;
   const clampQuantity = (next: number) => {
     const max = Math.max(currentStock, 1);
     return Math.min(Math.max(next, 1), max);
@@ -111,6 +118,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       quantity: resolvedQuantity,
       color: resolvedColor || undefined,
       size: resolvedSize || undefined,
+      variantId: selectedVariant?.id,
     });
     alert("Added to cart!");
   };
@@ -192,19 +200,30 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <div>
                   <h3 className="text-sm font-medium text-gray-900 mb-4 uppercase tracking-wide">Color</h3>
                   <div className="flex flex-wrap gap-3">
-                    {product.colors.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => setSelectedColor(color)}
-                        className={`px-6 py-2 rounded-full text-sm border transition-all ${
-                          resolvedColor === color
-                            ? "border-black bg-black text-white shadow-md"
-                            : "border-gray-200 text-gray-600 hover:border-gray-400"
-                        }`}
-                      >
-                        {color}
-                      </button>
-                    ))}
+                    {product.colors.map((color) => {
+                      // Check if any size is in stock for this color
+                      const colorVariants = product.variants?.filter((v) => v.color === color) ?? [];
+                      const hasStock = colorVariants.length === 0 
+                        ? product.stock > 0 
+                        : colorVariants.some((v) => v.stock > 0);
+
+                      return (
+                        <button
+                          key={color}
+                          onClick={() => hasStock && setSelectedColor(color)}
+                          disabled={!hasStock}
+                          className={`px-6 py-2 rounded-full text-sm border transition-all ${
+                            !hasStock
+                              ? "border-gray-100 text-gray-300 cursor-not-allowed line-through"
+                              : resolvedColor === color
+                                ? "border-black bg-black text-white shadow-md"
+                                : "border-gray-200 text-gray-600 hover:border-gray-400"
+                          }`}
+                        >
+                          {color}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -216,19 +235,31 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <button className="text-xs text-gray-500 underline hover:text-black" type="button">Size Guide</button>
                   </div>
                   <div className="grid grid-cols-4 gap-3">
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`py-3 rounded-lg text-sm border transition-all ${
-                          resolvedSize === size
-                            ? "border-black bg-black text-white shadow-md"
-                            : "border-gray-200 text-gray-600 hover:border-gray-400"
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                    {product.sizes.map((size) => {
+                      // Check if this size is in stock for the selected color
+                      const variant = product.variants?.find(
+                        (v) => v.size === size && v.color === resolvedColor
+                      );
+                      const sizeStock = variant?.stock ?? product.stock;
+                      const isOutOfStock = sizeStock <= 0;
+
+                      return (
+                        <button
+                          key={size}
+                          onClick={() => !isOutOfStock && setSelectedSize(size)}
+                          disabled={isOutOfStock}
+                          className={`py-3 rounded-lg text-sm border transition-all ${
+                            isOutOfStock
+                              ? "border-gray-100 text-gray-300 cursor-not-allowed line-through"
+                              : resolvedSize === size
+                                ? "border-black bg-black text-white shadow-md"
+                                : "border-gray-200 text-gray-600 hover:border-gray-400"
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -137,8 +137,8 @@ export default function LoginPage() {
                 className="h-32 sm:h-40 w-auto max-w-[500px] object-contain"
               />
             </div>
-              <h1 className="mt-4 text-4xl font-bold text-gray-900">Welcome back</h1>
-              <p className="mt-3 text-sm text-gray-600">
+              <h1 className="mt-4 text-4xl font-bold text-gray-900 flex justify-center">Welcome back</h1>
+              <p className="mt-3 text-sm text-gray-600 flex justify-center">
                 Sign in to track orders, manage your profile, and save your favorites.
               </p>
             </div>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { slugify } from "@/app/lib/utils";
-import type { Product } from "@/app/lib/types";
+import type { Product, Variant } from "@/app/lib/types";
 
 const parseList = (value: unknown): string[] =>
   Array.isArray(value)
@@ -13,6 +13,14 @@ const parseList = (value: unknown): string[] =>
           .map((item) => item.trim())
           .filter(Boolean)
       : [];
+
+type VariantRow = {
+  id: number;
+  product_id: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+};
 
 type ProductRow = {
   id: string;
@@ -35,7 +43,15 @@ type ProductRow = {
   updated_at?: string | null;
 };
 
-const mapProductRow = (row: ProductRow): Product => ({
+const mapVariantRow = (row: VariantRow): Variant => ({
+  id: row.id,
+  productId: row.product_id,
+  size: row.size ?? "",
+  color: row.color ?? "",
+  stock: row.stock ?? 0,
+});
+
+const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
   id: row.id,
   slug: row.slug,
   name: row.name,
@@ -56,6 +72,7 @@ const mapProductRow = (row: ProductRow): Product => ({
       ? JSON.parse(row.highlights)
       : [],
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
+  variants,
 });
 
 // [NEW] Helper to check if user is admin
@@ -99,7 +116,16 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   if (error || !data) {
     return NextResponse.json({ ok: false, error: "Product not found." }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, data: mapProductRow(data) });
+
+  // Fetch variants for this product
+  const { data: variantsData } = await supabaseAdmin
+    .from("product_variants")
+    .select("*")
+    .eq("product_id", data.id);
+
+  const variants = (variantsData ?? []).map((v: VariantRow) => mapVariantRow(v));
+
+  return NextResponse.json({ ok: true, data: mapProductRow(data, variants) });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
