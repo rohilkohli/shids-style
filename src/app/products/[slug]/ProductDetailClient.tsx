@@ -6,6 +6,9 @@ import Image from "next/image";
 import { useCommerceStore, getProductPrice } from "@/app/lib/store";
 import { ShoppingBag, Star, Truck, ShieldCheck, ArrowRight } from "lucide-react";
 import { formatCurrency, renderDescriptionHtml } from "@/app/lib/utils";
+import { Breadcrumbs, breadcrumbConfigs } from "@/app/components/Breadcrumbs";
+import { ProductDetailSkeleton } from "@/app/components/Skeleton";
+import { useToast } from "@/app/components/Toast";
 
 const useIsClient = () =>
   useSyncExternalStore(
@@ -22,6 +25,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     getProductBySlug,
     productsLoading,
   } = useCommerceStore();
+  const { toast } = useToast();
   const isClient = useIsClient();
   const product = getProductBySlug(slug);
 
@@ -56,16 +60,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   })();
 
   if (!isClient || (!product && productsLoading)) {
-    return (
-      <div className="bg-white min-h-screen pt-24 pb-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
-            <h1 className="text-2xl font-medium text-black mb-2">Loading product...</h1>
-            <p className="text-gray-500">Fetching the latest details.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   if (!product) {
@@ -124,11 +119,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const handleAddToCart = () => {
     if (!product) return;
     if (product.sizes.length > 0 && !resolvedSize) {
-      alert("Please select a size");
+      toast.warning("Please select a size");
       return;
     }
     if (currentStock < resolvedQuantity) {
-      alert("Sorry, we don't have enough stock for this selection.");
+      toast.error("Sorry, we don't have enough stock for this selection.");
       return;
     }
 
@@ -139,19 +134,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       size: resolvedSize || undefined,
       variantId: selectedVariant?.id,
     });
-    alert("Added to cart!");
+    toast.success(`${product.name} added to cart!`);
   };
 
   return (
     <main className="bg-white min-h-screen pt-24 pb-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav className="flex items-center text-xs text-gray-500 mb-6">
-          <Link href="/" className="hover:text-black transition-colors">Home</Link>
-          <ArrowRight className="w-4 h-4 mx-2" />
-          <Link href="/shop" className="hover:text-black transition-colors">Shop</Link>
-          <ArrowRight className="w-4 h-4 mx-2" />
-          <span className="text-black font-medium">{product.name}</span>
-        </nav>
+        <Breadcrumbs items={breadcrumbConfigs.product(product.name, product.category)} className="mb-6" />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           <div className="space-y-6 animate-slide-up">
@@ -219,11 +208,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <div>
                   <h3 className="text-sm font-medium text-gray-900 mb-4 uppercase tracking-wide">Color</h3>
                   <div className="flex flex-wrap gap-3">
-                    {product.colors.map((color) => {
+                    {product.colors.map((color, idx) => {
                       const available = isColorAvailable(color);
                       return (
                         <button
-                          key={color}
+                          key={`${color}-${idx}`}
                           onClick={() => available && setSelectedColor(color)}
                           disabled={!available}
                           className={`px-6 py-2 rounded-full text-sm border transition-all ${
@@ -249,11 +238,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                     <button className="text-xs text-gray-500 underline hover:text-black" type="button">Size Guide</button>
                   </div>
                   <div className="grid grid-cols-4 gap-3">
-                    {product.sizes.map((size) => {
+                    {product.sizes.map((size, idx) => {
                       const available = isSizeAvailable(size);
                       return (
                         <button
-                          key={size}
+                          key={`${size}-${idx}`}
                           onClick={() => available && setSelectedSize(size)}
                           disabled={!available}
                           className={`py-3 rounded-lg text-sm border transition-all ${

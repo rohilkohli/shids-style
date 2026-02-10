@@ -8,6 +8,7 @@ import { getProductPrice, useCommerceStore } from "@/app/lib/store";
 import { formatCurrency, formatDate, formatDateTime, renderDescriptionHtml, slugify } from "@/app/lib/utils";
 import type { Category, OrderStatus, Product, Order, Customer } from "@/app/lib/types";
 import { supabase } from "@/app/lib/supabase/client";
+import { useToast } from "@/app/components/Toast";
 
 const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "fulfilled", "shipped", "cancelled"];
 
@@ -119,6 +120,7 @@ export default function AdminPage() {
     deleteDiscountCode,
     toggleDiscountCodeActive,
   } = useCommerceStore();
+  const { toast } = useToast();
 
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -576,25 +578,25 @@ export default function AdminPage() {
   const goToNextProductStep = () => {
     if (productStep === 0) {
       if (!productForm.name.trim()) {
-        alert("Product name is required");
+        toast.warning("Product name is required");
         return;
       }
       if (!productForm.category.trim()) {
-        alert("Category is required");
+        toast.warning("Category is required");
         return;
       }
     }
     if (productStep === 1) {
       const price = Number(productForm.price) || 0;
       if (price <= 0) {
-        alert("Price must be greater than 0");
+        toast.warning("Price must be greater than 0");
         return;
       }
     }
     if (productStep === 3) {
       const images = parseImages(productForm.images);
       if (images.length === 0) {
-        alert("Please add at least one image");
+        toast.warning("Please add at least one image");
         return;
       }
     }
@@ -613,25 +615,25 @@ export default function AdminPage() {
 
     if (productStep === 0) {
       if (!productForm.name.trim()) {
-        alert("Product name is required");
+        toast.warning("Product name is required");
         return;
       }
       if (!productForm.category.trim()) {
-        alert("Category is required");
+        toast.warning("Category is required");
         return;
       }
     }
     if (productStep === 1) {
       const price = Number(productForm.price) || 0;
       if (price <= 0) {
-        alert("Price must be greater than 0");
+        toast.warning("Price must be greater than 0");
         return;
       }
     }
     if (productStep === 3) {
       const images = parseImages(productForm.images);
       if (images.length === 0) {
-        alert("Please add at least one image");
+        toast.warning("Please add at least one image");
         return;
       }
     }
@@ -736,23 +738,23 @@ export default function AdminPage() {
     const images = parseImages(productForm.images);
 
     if (!name) {
-      alert("Product name is required");
+      toast.warning("Product name is required");
       return;
     }
     if (!category) {
-      alert("Category is required");
+      toast.warning("Category is required");
       return;
     }
     if (price <= 0) {
-      alert("Price must be greater than 0");
+      toast.warning("Price must be greater than 0");
       return;
     }
     if (!description.replace(/<[^>]*>/g, "").trim()) {
-      alert("Description is required");
+      toast.warning("Description is required");
       return;
     }
     if (images.length === 0) {
-      alert("Please add at least one image");
+      toast.warning("Please add at least one image");
       return;
     }
 
@@ -979,11 +981,11 @@ export default function AdminPage() {
     courier?: string
   ) => {
     if (status === "shipped" && !awb?.trim()) {
-      alert("AWB Number is required to mark order as shipped");
+      toast.warning("AWB Number is required to mark order as shipped");
       return null;
     }
     if (status === "shipped" && !courier?.trim()) {
-      alert("Courier name is required to mark order as shipped");
+      toast.warning("Courier name is required to mark order as shipped");
       return null;
     }
     try {
@@ -3163,11 +3165,11 @@ export default function AdminPage() {
                       <button
                         onClick={() => {
                           if (!awbNumber.trim()) {
-                            alert("Please enter AWB number");
+                            toast.warning("Please enter AWB number");
                             return;
                           }
                           if (!courierName.trim()) {
-                            alert("Please enter courier name");
+                            toast.warning("Please enter courier name");
                             return;
                           }
                           handleOrderStatusUpdate(selectedOrder.id, "shipped", awbNumber, courierName);
@@ -3429,11 +3431,11 @@ export default function AdminPage() {
                 <button
                   onClick={async () => {
                     if (!discountForm.code.trim()) {
-                      alert("Please enter a code");
+                      toast.warning("Please enter a code");
                       return;
                     }
                     if (discountForm.value <= 0) {
-                      alert("Please enter a valid discount value");
+                      toast.warning("Please enter a valid discount value");
                       return;
                     }
                     try {

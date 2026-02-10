@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Order } from "../lib/types";
 import { formatCurrency, formatDateTime } from "../lib/utils";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function TrackClient() {
   const searchParams = useSearchParams();
@@ -57,6 +58,7 @@ export default function TrackClient() {
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
+        <Breadcrumbs items={breadcrumbConfigs.track} className="mb-6" />
         <div className="rounded-2xl border border-gray-100 bg-white/80 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Track Your Order</h1>

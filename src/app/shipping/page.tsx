@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
 import CartDrawer from "../components/CartDrawer";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function ShippingPage() {
   const router = useRouter();
@@ -179,6 +180,7 @@ export default function ShippingPage() {
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <Breadcrumbs items={breadcrumbConfigs.shipping} className="mb-6" />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Shipping Details</h1>

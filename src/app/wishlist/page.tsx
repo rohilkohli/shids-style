@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import CartDrawer from "../components/CartDrawer";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function WishlistPage() {
   const { wishlistItems, addToCart } = useCommerceStore();
@@ -17,6 +18,7 @@ export default function WishlistPage() {
     <main className="min-h-screen bg-[color:var(--background)]">
       <section className="py-10 sm:py-12">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <Breadcrumbs items={breadcrumbConfigs.wishlist} className="mb-6" />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Wishlist</h1>

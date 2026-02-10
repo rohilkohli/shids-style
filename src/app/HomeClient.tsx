@@ -119,9 +119,9 @@ function ProductCard({
 
         {product.colors?.length ? (
           <div className="flex items-center gap-1.5">
-            {product.colors.slice(0, 4).map((color) => (
+            {product.colors.slice(0, 4).map((color, idx) => (
               <span
-                key={color}
+                key={`${color}-${idx}`}
                 className="h-4 w-4 sm:h-5 sm:w-5 rounded-full border border-black/10 shadow-sm"
                 style={{ backgroundColor: color }}
                 aria-label={`Color ${color}`}

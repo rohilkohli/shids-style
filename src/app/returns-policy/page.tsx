@@ -1,11 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function ReturnsPolicyPage() {
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
       <section className="py-10 sm:py-12">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <Breadcrumbs items={breadcrumbConfigs.returnsPolicy} className="mb-6" />
           <div className="rounded-2xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm space-y-4">
             <div className="flex justify-center">
               <Image

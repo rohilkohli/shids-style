@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useMemo } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function CartPage() {
   const { cart, products, updateCartQuantity, removeFromCart } = useCommerceStore();
@@ -48,6 +49,7 @@ export default function CartPage() {
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
+        <Breadcrumbs items={breadcrumbConfigs.cart} className="mb-6" />
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">Your Cart</h1>
           <Link href="/shop" className="text-sm text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10 rounded">

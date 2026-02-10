@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -13,6 +14,7 @@ export default function ContactPage() {
     <main className="min-h-screen bg-[color:var(--background)]">
       <section className="py-10 sm:py-14">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <Breadcrumbs items={breadcrumbConfigs.contact} className="mb-6" />
           {/* UI polish: clarified hierarchy and spacing for contact layout. */}
           <div className="rounded-3xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="flex justify-center mb-8">
@@ -114,7 +116,7 @@ export default function ContactPage() {
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5 space-y-4 text-sm text-gray-600">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500 font-semibold">Customer Care</p>
-                  <p className="mt-2 text-gray-900 font-medium">support@shids.style</p>
+                  <p className="mt-2 text-gray-900 font-medium">support@shidstyle.com</p>
                   <p className="text-xs text-gray-500">Mon–Sat · 10:00am–6:00pm</p>
                 </div>
                 <div>

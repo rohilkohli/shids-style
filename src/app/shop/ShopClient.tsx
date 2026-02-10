@@ -8,6 +8,8 @@ import { getProductPrice, useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency } from "../lib/utils";
 import type { Category, Product } from "../lib/types";
 import CartDrawer from "../components/CartDrawer";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
+import { useToast } from "../components/Toast";
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "name";
 
@@ -92,6 +94,7 @@ export default function ShopClient() {
     productsLoading,
     ready,
   } = useCommerceStore();
+  const { toast } = useToast();
   const [search, setSearch] = useState<string | null>(null);
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOption>("featured");
@@ -163,6 +166,7 @@ export default function ShopClient() {
     <main className="min-h-screen bg-[color:var(--background)]">
       <section className="py-8 sm:py-10 section-tint">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Breadcrumbs items={breadcrumbConfigs.shop} className="mb-6" />
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Collection</h1>
@@ -215,6 +219,7 @@ export default function ShopClient() {
                 onWishlist={toggleWishlist}
                 onAdd={(p) => {
                   addToCart({ productId: p.id, quantity: 1 });
+                  toast.success(`${p.name} added to cart`);
                   setShowCart(true);
                 }}
               />

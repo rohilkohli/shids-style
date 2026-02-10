@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { useCommerceStore } from "../lib/store";
 import { classNames, formatCurrency, formatDateTime } from "../lib/utils";
 import CartDrawer from "../components/CartDrawer";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
+import { AccountSkeleton } from "../components/Skeleton";
 
 type Section = "overview" | "orders" | "profile";
 
@@ -35,9 +37,7 @@ export default function AccountPage() {
   if (!ready) {
     return (
       <main className="min-h-screen bg-[color:var(--background)]">
-        <div className="mx-auto max-w-5xl px-6 py-20 text-center text-gray-600">
-          Loading account...
-        </div>
+        <AccountSkeleton />
       </main>
     );
   }
@@ -64,6 +64,7 @@ export default function AccountPage() {
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+        <Breadcrumbs items={breadcrumbConfigs.account} className="mb-6" />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -246,7 +247,7 @@ export default function AccountPage() {
                     <p>No orders found for this email.</p>
                     <Link
                       href="/shop"
-                      className="mt-4 inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold !text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                      className="mt-4 inline-flex rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                     >
                       Shop Now
                     </Link>

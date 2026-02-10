@@ -7,6 +7,9 @@ export const classNames = (
   ...classes: Array<string | false | null | undefined>
 ): string => classes.filter(Boolean).join(" ");
 
+// Alias for classNames (commonly used in shadcn/ui style)
+export const cn = classNames;
+
 export const slugify = (value: string) =>
   value
     .toLowerCase()

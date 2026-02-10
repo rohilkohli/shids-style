@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
+import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 const PAYMENT_WINDOW_SECONDS = 300;
 const FREE_SHIPPING_THRESHOLD = 999;
@@ -164,6 +165,7 @@ export default function PaymentPage() {
     <main className="min-h-screen bg-[color:var(--background)] relative">
       <section className="py-10 sm:py-14">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <Breadcrumbs items={breadcrumbConfigs.payment} className="mb-6" />
           <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-gray-500">
             <span className="rounded-full border border-gray-200 px-3 py-1">Shipping</span>
             <span className="h-px w-6 bg-gray-200" />
