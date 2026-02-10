@@ -15,6 +15,8 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
+  if (!items || items.length === 0) return null;
+  
   return (
     <nav aria-label="Breadcrumb" className={cn("flex items-center text-sm", className)}>
       <ol className="flex flex-wrap items-center gap-1.5">
