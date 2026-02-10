@@ -50,7 +50,7 @@ const mapVariantRow = (row: VariantRow): Variant => ({
   productId: row.product_id,
   size: row.size ?? "",
   color: row.color ?? "",
-  stock: row.stock ?? 0,
+  stock: row.stock,
 });
 
 const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
@@ -74,7 +74,7 @@ const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
       ? JSON.parse(row.highlights)
       : [],
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
-  variants,
+  variants: variants ?? [],
 });
 
 // [NEW] Helper to check if user is admin
@@ -128,19 +128,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  // Fetch variants for all products
+  // Fetch variants for all returned products
   const productIds = (data ?? []).map((p) => p.id);
-  const { data: variantsData } = await supabaseAdmin
-    .from("product_variants")
-    .select("*")
-    .in("product_id", productIds);
+  const { data: variantRows } = productIds.length > 0
+    ? await supabaseAdmin
+        .from("product_variants")
+        .select("*")
+        .in("product_id", productIds)
+    : { data: [] };
 
+  // Group variants by product_id
   const variantsByProduct = new Map<string, Variant[]>();
-  (variantsData ?? []).forEach((v: VariantRow) => {
-    const existing = variantsByProduct.get(v.product_id) ?? [];
-    existing.push(mapVariantRow(v));
-    variantsByProduct.set(v.product_id, existing);
-  });
+  for (const row of (variantRows ?? []) as VariantRow[]) {
+    const mapped = mapVariantRow(row);
+    const existing = variantsByProduct.get(mapped.productId) ?? [];
+    existing.push(mapped);
+    variantsByProduct.set(mapped.productId, existing);
+  }
 
   return NextResponse.json({
     ok: true,

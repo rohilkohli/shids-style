@@ -48,7 +48,7 @@ const mapVariantRow = (row: VariantRow): Variant => ({
   productId: row.product_id,
   size: row.size ?? "",
   color: row.color ?? "",
-  stock: row.stock ?? 0,
+  stock: row.stock,
 });
 
 const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
@@ -72,7 +72,7 @@ const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
       ? JSON.parse(row.highlights)
       : [],
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
-  variants,
+  variants: variants ?? [],
 });
 
 // [NEW] Helper to check if user is admin
@@ -118,12 +118,12 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   }
 
   // Fetch variants for this product
-  const { data: variantsData } = await supabaseAdmin
+  const { data: variantRows } = await supabaseAdmin
     .from("product_variants")
     .select("*")
     .eq("product_id", data.id);
 
-  const variants = (variantsData ?? []).map((v: VariantRow) => mapVariantRow(v));
+  const variants = (variantRows ?? []).map((row: VariantRow) => mapVariantRow(row));
 
   return NextResponse.json({ ok: true, data: mapProductRow(data, variants) });
 }
