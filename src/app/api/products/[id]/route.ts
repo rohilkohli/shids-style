@@ -228,6 +228,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       { status: 409 }
     );
   }
+  // Remove any hero section references first to satisfy FK constraints
+  const { error: heroError } = await supabaseAdmin
+    .from("hero_products")
+    .delete()
+    .eq("product_id", row.id);
+
+  if (heroError) {
+    return NextResponse.json({ ok: false, error: heroError.message }, { status: 500 });
+  }
 
   const { error } = await supabaseAdmin.from("products").delete().eq("id", row.id);
   if (error) {
