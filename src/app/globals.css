@@ -9,26 +9,41 @@ body {
 
 @import "tailwindcss";
 
+/* Light mode (default) */
 :root {
   --background: #f7f7f7;
   --foreground: #1a1a1a;
   --muted: #f9f9f9;
   --card: #ffffff;
-  --border: #2b2b2b;
+  --border: #e5e5e5;
+  --border-strong: #2b2b2b;
   --accent: #1a1a1a;
   --accent-2: #4a4a4a;
   --accent-3: #f9f9f9;
   --primary: #121826;
   --primary-2: #3b2f26;
   --primary-soft: #f3ebe4;
-  --primary-border: #2b2b2b;
+  --primary-border: #e5e5e5;
   --section: #faf7f4;
   --bg-gradient: radial-gradient(1200px 600px at 10% -10%, rgba(255, 107, 168, 0.18), transparent 60%),
     radial-gradient(1200px 700px at 90% 0%, rgba(99, 102, 241, 0.16), transparent 55%),
     linear-gradient(180deg, #ffffff 0%, #f6f3f9 38%, #eef2ff 100%);
   --section-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 240, 248, 0.92) 100%);
   --card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 244, 250, 0.96) 100%);
+  
+  /* Text colors */
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  
+  /* Status colors */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
 }
+
+/* Dark mode removed: variables above represent the single light theme only */
 
 @theme inline {
   --color-background: var(--background);
@@ -52,6 +67,7 @@ body {
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 main,
@@ -60,6 +76,7 @@ header {
   background: transparent;
 }
 
+/* Background helpers */
 :where(.bg-white) {
   background: var(--card-gradient) !important;
 }
@@ -180,10 +197,7 @@ a {
   color: #6b5a4d;
 }
 
-.icon-dark {
-  filter: brightness(0) saturate(100%);
-  opacity: 0.8;
-}
+/* icon-dark no longer used after dark theme removal */
 
 .spin-once {
   animation: spinOnce 260ms ease-in-out;

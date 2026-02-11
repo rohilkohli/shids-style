@@ -50,7 +50,7 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
           <div className="fixed inset-0 z-[60]" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
             <aside
-              className="absolute right-0 top-0 h-full w-full sm:w-[360px] md:w-[400px] bg-white shadow-2xl border-l border-gray-200"
+              className="absolute right-0 top-0 h-full w-full sm:w-[360px] md:w-[400px] bg-white shadow-2xl border-l border-gray-200 transition-colors duration-200"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100">

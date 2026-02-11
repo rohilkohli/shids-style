@@ -28,15 +28,14 @@ export default function AboutPage() {
                   className="
                     relative
                     w-full
-                    max-w-[280px]        /* mobile max width */
-                    sm:max-w-[320px]     /* small screens */
-                    md:max-w-[360px]     /* medium+ screens */
-                    aspect-[3/4]         /* keeps consistent height/width ratio */
+                    max-w-[300px]
+                    sm:max-w-[340px]
+                    md:max-w-[400px]
+                    aspect-[3/4]
                     overflow-hidden
                     rounded-2xl
-                    border border-black/30
+                    border border-black/20
                     bg-white
-                    ring-1 ring-black/10
                     shadow-[0_18px_40px_rgba(15,23,42,0.18)]
                   "
                 >
@@ -45,7 +44,7 @@ export default function AboutPage() {
                     alt="Founder of SHIDS STYLE"
                     fill
                     sizes="(min-width: 1024px) 360px, (min-width: 768px) 320px, (min-width: 640px) 280px, 100vw"
-                    className="object-contain object-center"
+                    className="object-cover object-center"
                     priority
                   />
                 </div>

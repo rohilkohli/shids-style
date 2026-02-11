@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
 import { formatCurrency, formatDate, formatDateTime, renderDescriptionHtml, slugify } from "@/app/lib/utils";
 import type { Category, OrderStatus, Product, Order, Customer } from "@/app/lib/types";
 import { supabase } from "@/app/lib/supabase/client";
 import { useToast } from "@/app/components/Toast";
+import ProductDescriptionEditor from "@/app/components/ProductDescriptionEditor";
 
 const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "fulfilled", "shipped", "cancelled"];
 
@@ -136,7 +137,6 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [imageLinkInput, setImageLinkInput] = useState("");
-  const descriptionEditorRef = useRef<HTMLDivElement | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -291,25 +291,6 @@ export default function AdminPage() {
 
   const imageList = useMemo(() => parseImages(productForm.images), [productForm.images]);
   const previewImages = imageList.filter(isImageSrc);
-
-  useEffect(() => {
-    const editor = descriptionEditorRef.current;
-    if (!editor) return;
-    const next = productForm.description || "";
-    if (editor.innerHTML !== next) {
-      editor.innerHTML = next;
-    }
-  }, [productForm.description]);
-
-  const applyDescriptionCommand = (command: string, value?: string) => {
-    const editor = descriptionEditorRef.current;
-    if (!editor) return;
-    editor.focus();
-    document.execCommand(command, false, value);
-    const html = editor.innerHTML;
-    if (!html) return;
-    setProductForm((prev) => ({ ...prev, description: html }));
-  };
 
 
   // Calculate stats
@@ -2337,73 +2318,20 @@ export default function AdminPage() {
                       </p>
                     </label>
 
-                    <label className="text-sm font-medium text-gray-700 md:col-span-2">
-                      Description
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                        <span className="font-semibold text-gray-700">Formatting:</span>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("bold")}
-                        >
-                          Bold
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("italic")}
-                        >
-                          Italic
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("insertUnorderedList")}
-                        >
-                          Bullets
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => applyDescriptionCommand("insertOrderedList")}
-                        >
-                          Numbered
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-gray-200 bg-white px-2 py-1 font-semibold text-gray-800 hover:border-indigo-200"
-                          onClick={() => {
-                            const url = window.prompt("Enter a URL");
-                            if (url) applyDescriptionCommand("createLink", url);
-                          }}
-                        >
-                          Link
-                        </button>
-                      </div>
-                      <div
-                        ref={descriptionEditorRef}
-                        className="mt-2 min-h-[140px] w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none"
-                        contentEditable
-                        suppressContentEditableWarning
-                        onInput={(event) =>
-                          setProductForm((prev) => ({
-                            ...prev,
-                            description: event.currentTarget?.innerHTML ?? "",
-                          }))
-                        }
-                        onBlur={(event) => {
-                          const html = event.currentTarget?.innerHTML ?? "";
+                    <div className="md:col-span-2">
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Description
+                      </label>
+                      <ProductDescriptionEditor
+                        value={productForm.description}
+                        onChange={(html) => {
                           const sanitized = renderDescriptionHtml(html);
                           setProductForm((prev) => ({ ...prev, description: sanitized }));
-                          if (event.currentTarget) {
-                            event.currentTarget.innerHTML = sanitized;
-                          }
                         }}
+                        placeholder="Describe your product..."
+                        minHeight={180}
                       />
-                      <p className="mt-2 text-xs text-gray-500">
-                        Use the toolbar to format text. Formatting is saved with the product.
-                      </p>
-                    </label>
+                    </div>
                   </div>
                 </div>
               )}

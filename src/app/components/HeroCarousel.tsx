@@ -45,6 +45,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
           className={`absolute inset-0 transition-opacity duration-700 ${
             index === safeIndex ? "opacity-100" : "opacity-0"
           }`}
+          tabIndex={index === safeIndex ? 0 : -1}
           aria-hidden={index !== safeIndex}
         >
           <Image

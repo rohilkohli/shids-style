@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCommerceStore, getProductPrice } from "@/app/lib/store";
-import { ShoppingBag, Star, Truck, ShieldCheck, ArrowRight } from "lucide-react";
+import { ShoppingBag, Star, Truck, ShieldCheck } from "lucide-react";
 import { formatCurrency, renderDescriptionHtml } from "@/app/lib/utils";
 import { Breadcrumbs, breadcrumbConfigs } from "@/app/components/Breadcrumbs";
 import { ProductDetailSkeleton } from "@/app/components/Skeleton";

@@ -42,7 +42,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white sm:bg-white/95 sm:backdrop-blur-sm border-b border-black">
+      <header className="sticky top-0 z-50 bg-white sm:bg-white/95 sm:backdrop-blur-sm border-b border-black transition-colors duration-200">
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-16">
             <div className="flex items-center gap-2">
@@ -113,7 +113,7 @@ export default function Navbar() {
                     alt="Search"
                     width={20}
                     height={20}
-                    className="h-5 w-5 icon-dark opacity-100"
+                    className="h-5 w-5 opacity-100"
                   />
                 </span>
                 <input
@@ -195,7 +195,7 @@ export default function Navbar() {
       {menuOpen && (
         <div className="fixed left-0 right-0 bottom-0 top-14 z-[20] sm:hidden">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-[min(86vw,340px)] bg-white shadow-2xl border-r border-gray-200 flex flex-col">
+          <aside className="absolute left-0 top-0 h-full w-[min(86vw,340px)] bg-white shadow-2xl border-r border-gray-200 flex flex-col transition-colors duration-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-black/20">
               <p className="text-[11px] uppercase tracking-[0.35em] text-Black font-semibold">Menu</p>
             </div>
