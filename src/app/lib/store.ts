@@ -6,8 +6,8 @@ import { CartItem, Order, OrderStatus, Product, DiscountCode, User } from "./typ
 import { formatCurrency, slugify } from "./utils";
 import { supabase } from "./supabase/client";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import { loadPersistedState, persistState, type PersistedState } from "@/app/lib/store/persistence";
 
-const STORAGE_KEY = "shids-style/state/v2";
 const PRODUCTS_PAGE_SIZE = 12;
 
 const clamp = (value: number, min: number, max: number) =>
@@ -41,31 +41,12 @@ type ProductPageResponse = {
   limit: number;
 };
 
-type PersistedState = {
-  products: Product[];
-  orders: Order[];
-  cart: CartItem[];
-  wishlist: string[];
-  discountCodes: DiscountCode[];
-  user?: User | null;
-  recentlyViewed: string[];
-};
 
 export function useCommerceStore() {
   const instanceIdRef = useRef<string | null>(null);
   const suppressBroadcastRef = useRef(false);
   const sessionTokenRef = useRef<string | null>(null);
-  const storedState = useMemo<Partial<PersistedState> | null>(() => {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as Partial<PersistedState>;
-    } catch (error) {
-      console.warn("Failed to read stored state", error);
-      return null;
-    }
-  }, []);
+  const storedState = useMemo<Partial<PersistedState> | null>(() => loadPersistedState(), []);
 
   const [ready, setReady] = useState(false);
   const [products, setProducts] = useState<Product[]>(
@@ -175,7 +156,7 @@ export function useCommerceStore() {
       suppressBroadcastRef.current = false;
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+    persistState(nextState);
     window.dispatchEvent(
       new CustomEvent("shids-state", {
         detail: { sourceId: instanceIdRef.current, state: nextState },

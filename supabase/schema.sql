@@ -561,3 +561,186 @@ begin
     where id = r.id;
   end loop;
 end $$;
+
+-- ==========================================
+-- 5.1 DATA INTEGRITY CONSTRAINTS & INDEXES
+-- ==========================================
+
+alter table public.products drop constraint if exists products_price_non_negative;
+alter table public.products
+  add constraint products_price_non_negative check (price >= 0) not valid;
+alter table public.products validate constraint products_price_non_negative;
+
+alter table public.products drop constraint if exists products_stock_non_negative;
+alter table public.products
+  add constraint products_stock_non_negative check (stock >= 0) not valid;
+alter table public.products validate constraint products_stock_non_negative;
+
+alter table public.order_items drop constraint if exists order_items_quantity_positive;
+alter table public.order_items
+  add constraint order_items_quantity_positive check (quantity > 0) not valid;
+alter table public.order_items validate constraint order_items_quantity_positive;
+
+alter table public.order_items drop constraint if exists order_items_price_non_negative;
+alter table public.order_items
+  add constraint order_items_price_non_negative check (price >= 0) not valid;
+alter table public.order_items validate constraint order_items_price_non_negative;
+
+alter table public.orders drop constraint if exists orders_total_non_negative;
+alter table public.orders
+  add constraint orders_total_non_negative check (total >= 0) not valid;
+alter table public.orders validate constraint orders_total_non_negative;
+
+alter table public.discount_codes drop constraint if exists discount_codes_value_non_negative;
+alter table public.discount_codes
+  add constraint discount_codes_value_non_negative check (value >= 0) not valid;
+alter table public.discount_codes validate constraint discount_codes_value_non_negative;
+
+alter table public.discount_codes drop constraint if exists discount_codes_used_count_non_negative;
+alter table public.discount_codes
+  add constraint discount_codes_used_count_non_negative check (used_count >= 0) not valid;
+alter table public.discount_codes validate constraint discount_codes_used_count_non_negative;
+
+alter table public.orders drop constraint if exists orders_status_allowed;
+alter table public.orders
+  add constraint orders_status_allowed check (status in ('pending', 'processing', 'packed', 'shipped', 'delivered', 'cancelled')) not valid;
+alter table public.orders validate constraint orders_status_allowed;
+
+create index if not exists idx_orders_email on public.orders (lower(email));
+create index if not exists idx_orders_created_at on public.orders (created_at desc);
+create index if not exists idx_order_items_order_id on public.order_items (order_id);
+create index if not exists idx_discount_codes_code_lower on public.discount_codes (lower(code));
+
+-- ==========================================
+-- 5.2 SHARED RATE LIMIT STORE
+-- ==========================================
+
+create table if not exists public.rate_limits (
+  identifier text primary key,
+  count integer not null default 0,
+  reset_at timestamptz not null,
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.check_rate_limit(
+  p_identifier text,
+  p_limit int,
+  p_window_ms int
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_now timestamptz := now();
+  v_row public.rate_limits%rowtype;
+  v_reset_at timestamptz;
+  v_retry_after int := 0;
+begin
+  select * into v_row
+  from public.rate_limits
+  where identifier = p_identifier
+  for update;
+
+  if not found or v_now > v_row.reset_at then
+    v_reset_at := v_now + make_interval(secs => (p_window_ms / 1000));
+    insert into public.rate_limits(identifier, count, reset_at, updated_at)
+    values (p_identifier, 1, v_reset_at, v_now)
+    on conflict (identifier)
+    do update set count = 1, reset_at = excluded.reset_at, updated_at = excluded.updated_at;
+
+    return jsonb_build_object('allowed', true, 'retry_after_seconds', 0);
+  end if;
+
+  if v_row.count >= p_limit then
+    v_retry_after := greatest(1, ceil(extract(epoch from (v_row.reset_at - v_now)))::int);
+    return jsonb_build_object('allowed', false, 'retry_after_seconds', v_retry_after);
+  end if;
+
+  update public.rate_limits
+  set count = count + 1,
+      updated_at = v_now
+  where identifier = p_identifier;
+
+  return jsonb_build_object('allowed', true, 'retry_after_seconds', 0);
+end;
+$$;
+
+revoke all on function public.check_rate_limit(text, int, int) from public;
+grant execute on function public.check_rate_limit(text, int, int) to service_role;
+
+create or replace function public.create_order_atomic(
+  p_discount_id text,
+  p_items jsonb,
+  p_order jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_order_id text;
+  v_order_record public.orders%rowtype;
+  v_stock_items jsonb;
+begin
+  v_order_id := p_order->>'id';
+
+  v_stock_items := (
+    select jsonb_agg(
+      jsonb_build_object(
+        'product_id', item->>'product_id',
+        'quantity', (item->>'quantity')::int
+      )
+    )
+    from jsonb_array_elements(p_items) item
+  );
+
+  perform public.reserve_order_stock(v_stock_items);
+
+  insert into public.orders(
+    id, email, address, notes, status, subtotal, shipping_fee,
+    discount_code, discount_amount, total, created_at
+  )
+  values (
+    v_order_id,
+    p_order->>'email',
+    p_order->>'address',
+    p_order->>'notes',
+    coalesce(p_order->>'status', 'pending'),
+    (p_order->>'subtotal')::numeric,
+    (p_order->>'shipping_fee')::numeric,
+    p_order->>'discount_code',
+    nullif(p_order->>'discount_amount', '')::numeric,
+    (p_order->>'total')::numeric,
+    coalesce((p_order->>'created_at')::timestamptz, now())
+  )
+  returning * into v_order_record;
+
+  insert into public.order_items(order_id, product_id, quantity, color, size, price)
+  select
+    v_order_id,
+    item->>'product_id',
+    (item->>'quantity')::int,
+    nullif(item->>'color', ''),
+    nullif(item->>'size', ''),
+    (item->>'price')::numeric
+  from jsonb_array_elements(p_items) item;
+
+  if p_discount_id is not null then
+    update public.discount_codes
+    set used_count = used_count + 1
+    where id = p_discount_id;
+  end if;
+
+  return to_jsonb(v_order_record);
+exception
+  when others then
+    if v_stock_items is not null then
+      perform public.release_order_stock(v_stock_items);
+    end if;
+    raise;
+end;
+$$;
+
+revoke all on function public.create_order_atomic(text, jsonb, jsonb) from public;
+grant execute on function public.create_order_atomic(text, jsonb, jsonb) to service_role;

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
-import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { slugify } from "@/app/lib/utils";
 import type { Product, Variant } from "@/app/lib/types";
+import { requireAdmin } from "@/app/lib/authContext";
+import { logEvent } from "@/app/lib/observability";
 
 export const dynamic = 'force-dynamic';
 
@@ -81,33 +82,6 @@ const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
   sku: row.sku ?? undefined,
 });
 
-// [NEW] Helper to check if user is admin
-async function checkAdmin(request: NextRequest) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  let resolvedUser = user;
-
-  if (!resolvedUser) {
-    const authHeader = request.headers.get("Authorization");
-    if (authHeader) {
-      const token = authHeader.replace("Bearer ", "");
-      const { data } = await supabaseAdmin.auth.getUser(token);
-      resolvedUser = data.user ?? null;
-    }
-  }
-
-  if (!resolvedUser) return false;
-
-  // Check the role in the 'profiles' table
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", resolvedUser.id)
-    .single();
-
-  return profile?.role === "admin";
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const search = searchParams.get("search")?.trim();
@@ -163,7 +137,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   // [NEW] Security Check
-  if (!await checkAdmin(request)) {
+  if (!await requireAdmin(request)) {
+    logEvent("warn", "product_create_unauthorized", { path: request.nextUrl.pathname });
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { User } from "@/app/lib/types";
+import { registerSchema } from "@/app/lib/validation";
+import { logEvent } from "@/app/lib/observability";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey =
@@ -28,15 +30,12 @@ const mapUserRow = (row: ProfileRow): User => ({
 });
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as { email?: string; password?: string; name?: string };
-
-  const email = body.email?.trim().toLowerCase();
-  const name = body.name?.trim();
-  const password = body.password?.trim();
-
-  if (!email || !name || !password || password.length < 6) {
+  const parsed = registerSchema.safeParse(await request.json());
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "Name, email and password (min 6 chars) are required." }, { status: 400 });
   }
+
+  const { email, name, password } = parsed.data;
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -48,6 +47,7 @@ export async function POST(request: NextRequest) {
 
   if (error || !data.user) {
     const status = error?.status === 400 || error?.status === 409 ? 409 : 400;
+    logEvent("warn", "register_failed", { email, reason: error?.message ?? "unknown" });
     return NextResponse.json({ ok: false, error: error?.message ?? "Email already registered." }, { status });
   }
 
@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
   if (profile) {
     return NextResponse.json({ ok: true, data: mapUserRow(profile) }, { status: 201 });
   }
+
+  logEvent("info", "register_success", { email, userId: data.user.id });
 
   return NextResponse.json(
     {

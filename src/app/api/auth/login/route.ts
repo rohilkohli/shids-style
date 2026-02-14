@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { User } from "@/app/lib/types";
+import { loginSchema } from "@/app/lib/validation";
+import { logEvent } from "@/app/lib/observability";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey =
@@ -28,17 +30,16 @@ const mapUserRow = (row: ProfileRow): User => ({
 });
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as { email?: string; password?: string };
-
-  const email = body.email?.trim().toLowerCase();
-  const password = body.password?.trim();
-
-  if (!email || !password) {
+  const parsed = loginSchema.safeParse(await request.json());
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "Email and password are required." }, { status: 400 });
   }
 
+  const { email, password } = parsed.data;
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
+    logEvent("warn", "login_failed", { email, reason: error?.message ?? "invalid_credentials" });
     return NextResponse.json({ ok: false, error: "Invalid credentials." }, { status: 401 });
   }
 
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
   if (profile) {
     return NextResponse.json({ ok: true, data: mapUserRow(profile) });
   }
+
+  logEvent("info", "login_success", { email, userId: data.user.id });
 
   return NextResponse.json({
     ok: true,
