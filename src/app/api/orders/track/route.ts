@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { verifyTrackingToken } from "@/app/lib/trackingToken";
+import { trackOrderSchema } from "@/app/lib/validation";
+import { logEvent } from "@/app/lib/observability";
 import type { Order, OrderStatus } from "@/app/lib/types";
 
 type OrderItemRow = {
@@ -52,20 +54,16 @@ const mapOrderRow = (row: OrderRow): Order => ({
 });
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as { orderId?: string; email?: string };
-  const orderId = decodeURIComponent(body.orderId ?? "").trim().toLowerCase();
-  const email = decodeURIComponent(body.email ?? "").trim().toLowerCase();
-
-
-
-  if (!orderId || !email) {
+  const parsed = trackOrderSchema.safeParse(await request.json());
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "Order ID and email are required." }, { status: 400 });
   }
+  const { orderId, email } = parsed.data;
 
   const { data, error } = await supabaseAdmin
     .from("orders")
     .select("*, order_items(*)")
-    .ilike("id", `%${orderId}%`)
+    .eq("id", orderId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -73,7 +71,7 @@ export async function POST(request: NextRequest) {
   const normalizedEmail = data?.email?.trim().toLowerCase() ?? "";
 
   if (error) {
-    console.warn("[track] lookup failed", { orderId, email, error: error.message });
+    logEvent("warn", "track_lookup_failed", { orderId, email, error: error.message });
     const status = process.env.NODE_ENV === "production" ? 404 : 500;
     const message = process.env.NODE_ENV === "production"
       ? "Order not found."
@@ -82,10 +80,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!data || normalizedEmail !== email) {
-    console.warn("[track] not found", { orderId, email });
+    logEvent("warn", "track_not_found", { orderId, email });
     return NextResponse.json({ ok: false, error: "Order not found." }, { status: 404 });
   }
 
+  logEvent("info", "track_lookup_success", { orderId });
   return NextResponse.json({ ok: true, data: mapOrderRow(data) });
 }
 
@@ -122,5 +121,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  logEvent("info", "track_lookup_success", { orderId });
   return NextResponse.json({ ok: true, data: mapOrderRow(data) });
 }

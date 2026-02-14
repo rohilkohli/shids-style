@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
-import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import type { Order } from "@/app/lib/types";
 import { Resend } from "resend";
 import OrderReceipt from "@/app/components/emails/OrderReceipt";
 import { generateShortOrderId } from "@/app/lib/orderId";
 import { generateTrackingToken, saveTrackingToken } from "@/app/lib/trackingToken";
+import { resolveAuthContext } from "@/app/lib/authContext";
+import { createOrderSchema } from "@/app/lib/validation";
+import { logEvent } from "@/app/lib/observability";
 
 type OrderItemRow = {
   product_id: string;
@@ -33,49 +35,11 @@ type OrderRow = {
   courier_name?: string | null;
 };
 
-type IncomingOrderItem = {
-  productId?: string;
-  quantity?: number;
-  color?: string | null;
-  size?: string | null;
-};
 
 export const revalidate = 0; // Disable caching for orders
 
-// Helper: Check User Role
 async function getUser(request: NextRequest) {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    let resolvedUser = user;
-
-    if (!resolvedUser) {
-      const authHeader = request.headers.get("Authorization");
-      if (authHeader) {
-        const token = authHeader.replace("Bearer ", "");
-        const { data } = await supabaseAdmin.auth.getUser(token);
-        resolvedUser = data.user ?? null;
-      }
-    }
-
-    if (!resolvedUser) return null;
-
-    // Fetch role
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role, email")
-      .eq("id", resolvedUser.id)
-      .single();
-
-    return { 
-      id: resolvedUser.id,
-      email: resolvedUser.email,
-      role: profile?.role ?? "customer" 
-    };
-  } catch (error) {
-    console.error("Failed to resolve user", error);
-    return null;
-  }
+  return resolveAuthContext(request);
 }
 
 export async function GET(request: NextRequest) {
@@ -142,33 +106,19 @@ export async function POST(request: NextRequest) {
   const user = await getUser(request);
   const isGuest = !user;
   
-  const body = (await request.json()) as {
-    email?: string;
-    address?: string;
-    items?: IncomingOrderItem[];
-    shippingFee?: number;
-    notes?: string;
-    name?: string;
-    discountCode?: string;
-    orderId?: string; // Pre-generated order ID from client
-  };
-  const now = new Date().toISOString();
-
-  // Basic validation
-  if (!body.email || !body.address || !body.items?.length) {
+  const parsed = createOrderSchema.safeParse(await request.json());
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "Missing required fields" }, { status: 400 });
   }
+  const body = parsed.data;
+  const now = new Date().toISOString();
 
-  const normalizedItems = Array.isArray(body.items)
-    ? body.items
-        .map((item) => ({
-          productId: String(item.productId ?? "").trim(),
-          quantity: Math.max(1, Number(item.quantity ?? 1)),
-          color: item.color ?? null,
-          size: item.size ?? null,
-        }))
-        .filter((item) => item.productId)
-    : [];
+  const normalizedItems = body.items.map((item) => ({
+    productId: item.productId,
+    quantity: item.quantity,
+    color: item.color ?? null,
+    size: item.size ?? null,
+  }));
 
   if (!normalizedItems.length) {
     return NextResponse.json({ ok: false, error: "Order items are required." }, { status: 400 });
@@ -234,7 +184,6 @@ export async function POST(request: NextRequest) {
   let discountAmount = 0;
   let appliedDiscountCode: string | null = null;
   let appliedDiscountId: string | null = null;
-  let nextDiscountUsedCount: number | null = null;
 
   if (requestedDiscountCode) {
     const { data: discountRow, error: discountError } = await supabaseAdmin
@@ -264,24 +213,12 @@ export async function POST(request: NextRequest) {
     discountAmount = Math.max(0, Math.min(discountAmount, subtotal));
     appliedDiscountCode = discountRow.code;
     appliedDiscountId = discountRow.id;
-    nextDiscountUsedCount = Number(discountRow.used_count ?? 0) + 1;
   }
 
   const shippingFee = Number(body.shippingFee ?? 0);
   const total = Number((subtotal - discountAmount + shippingFee).toFixed(2));
-  const stockItems = normalizedItems.map((item) => ({
-    product_id: item.productId,
-    quantity: item.quantity,
-  }));
-
-  const { error: reserveError } = await supabaseAdmin.rpc("reserve_order_stock", { items: stockItems });
-  if (reserveError) {
-    return NextResponse.json({ ok: false, error: reserveError.message }, { status: 409 });
-  }
 
   let orderId = "";
-  
-  // Try to use client-provided orderId if it matches expected format
   if (body.orderId && /^SHIDS-[A-Z0-9]{4}$/.test(body.orderId)) {
     const { data: existing } = await supabaseAdmin
       .from("orders")
@@ -292,8 +229,7 @@ export async function POST(request: NextRequest) {
       orderId = body.orderId;
     }
   }
-  
-  // Fall back to generating a new ID if client ID was not usable
+
   if (!orderId) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const candidate = generateShortOrderId();
@@ -308,34 +244,41 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-  
+
   if (!orderId) {
-    await supabaseAdmin.rpc("release_order_stock", { items: stockItems });
     return NextResponse.json({ ok: false, error: "Failed to generate order ID." }, { status: 500 });
   }
-  
-  // 1. Create Order
-  const { data: order, error: orderError } = await supabaseAdmin
-    .from("orders")
-    .insert({
-      id: orderId,
-      email: body.email,
-      address: body.address,
-      notes: body.notes,
-      status: "pending",
-      subtotal,
-      shipping_fee: shippingFee,
-      discount_code: appliedDiscountCode,
-      discount_amount: discountAmount || null,
-      total,
-      created_at: now,
-      is_guest: isGuest,
-    })
-    .select()
-    .single();
+
+  const atomicOrderPayload = {
+    id: orderId,
+    email: body.email,
+    address: body.address,
+    notes: body.notes,
+    status: "pending",
+    subtotal,
+    shipping_fee: shippingFee,
+    discount_code: appliedDiscountCode,
+    discount_amount: discountAmount || null,
+    total,
+    created_at: now,
+  };
+
+  const atomicItemsPayload = itemsPayload.map((item) => ({
+    product_id: item.product_id,
+    quantity: item.quantity,
+    color: item.color,
+    size: item.size,
+    price: item.price,
+  }));
+
+  const { data: order, error: orderError } = await supabaseAdmin.rpc("create_order_atomic", {
+    p_order: atomicOrderPayload,
+    p_items: atomicItemsPayload,
+    p_discount_id: appliedDiscountId,
+  });
 
   if (orderError) {
-    await supabaseAdmin.rpc("release_order_stock", { items: stockItems });
+    logEvent("error", "order_create_atomic_failed", { error: orderError.message, email: body.email });
     return NextResponse.json({ ok: false, error: orderError.message }, { status: 500 });
   }
 
@@ -346,31 +289,14 @@ export async function POST(request: NextRequest) {
     await saveTrackingToken(orderId, trackingToken);
   }
 
-  // 2. Create Order Items
-  const orderItems = itemsPayload.map((item) => ({
-    order_id: order.id,
+  const orderItems = atomicItemsPayload.map((item) => ({
+    order_id: order.id as string,
     product_id: item.product_id,
     quantity: item.quantity,
     color: item.color,
     size: item.size,
     price: item.price,
   }));
-
-  const { error: itemsError } = await supabaseAdmin
-    .from("order_items")
-    .insert(orderItems);
-  if (appliedDiscountId && nextDiscountUsedCount !== null) {
-    await supabaseAdmin
-      .from("discount_codes")
-      .update({ used_count: nextDiscountUsedCount })
-      .eq("id", appliedDiscountId);
-  }
-
-  if (itemsError) {
-    await supabaseAdmin.rpc("release_order_stock", { items: stockItems });
-    await supabaseAdmin.from("orders").delete().eq("id", order.id);
-    return NextResponse.json({ ok: false, error: "Failed to save items" }, { status: 500 });
-  }
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY ?? "");
@@ -409,8 +335,10 @@ export async function POST(request: NextRequest) {
       }),
     });
   } catch (error) {
-    console.warn("Failed to send order receipt email", error);
+    logEvent("warn", "order_email_failed", { orderId: order.id, error: (error as Error).message });
   }
+
+  logEvent("info", "order_created", { orderId: order.id, isGuest });
 
   return NextResponse.json({
     ok: true,

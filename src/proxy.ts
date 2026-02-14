@@ -1,8 +1,8 @@
 import { updateSession } from "@/app/lib/supabase/middleware";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-
-type RateEntry = { count: number; resetAt: number };
+import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { logEvent } from "@/app/lib/observability";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMITS: Array<{ prefix: string; limit: number }> = [
@@ -21,40 +21,29 @@ const getClientKey = (request: NextRequest) => {
 
 const shouldRateLimit = (pathname: string) => RATE_LIMITS.find((rule) => pathname.startsWith(rule.prefix));
 
-const getRateStore = () => {
-  const globalAny = globalThis as typeof globalThis & { __rateLimitStore?: Map<string, RateEntry> };
-  if (!globalAny.__rateLimitStore) {
-    globalAny.__rateLimitStore = new Map<string, RateEntry>();
-  }
-  return globalAny.__rateLimitStore;
-};
-
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const rule = shouldRateLimit(pathname);
   if (rule) {
-    const store = getRateStore();
     const key = `${rule.prefix}:${getClientKey(request)}`;
-    const now = Date.now();
-    const entry = store.get(key);
+    const { data, error } = await supabaseAdmin.rpc("check_rate_limit", {
+      p_identifier: key,
+      p_limit: rule.limit,
+      p_window_ms: RATE_LIMIT_WINDOW_MS,
+    });
 
-    if (!entry || now > entry.resetAt) {
-      store.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    } else {
-      entry.count += 1;
-      if (entry.count > rule.limit) {
-        const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-        return NextResponse.json(
-          { ok: false, error: "Too many requests. Please try again later." },
-          {
-            status: 429,
-            headers: {
-              "Retry-After": String(retryAfter),
-            },
-          }
-        );
-      }
-      store.set(key, entry);
+    if (error) {
+      logEvent("warn", "rate_limit_check_failed", { error: error.message, key });
+    } else if (data && !data.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(data.retry_after_seconds ?? 60),
+          },
+        }
+      );
     }
   }
   return updateSession(request);
