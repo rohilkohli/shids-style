@@ -272,9 +272,9 @@ export async function POST(request: NextRequest) {
   }));
 
   const { data: order, error: orderError } = await supabaseAdmin.rpc("create_order_atomic", {
-    p_order: atomicOrderPayload,
-    p_items: atomicItemsPayload,
     p_discount_id: appliedDiscountId,
+    p_items: atomicItemsPayload,
+    p_order: atomicOrderPayload,
   });
 
   if (orderError) {

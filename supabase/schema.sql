@@ -670,9 +670,9 @@ revoke all on function public.check_rate_limit(text, int, int) from public;
 grant execute on function public.check_rate_limit(text, int, int) to service_role;
 
 create or replace function public.create_order_atomic(
-  p_order jsonb,
+  p_discount_id text,
   p_items jsonb,
-  p_discount_id text default null
+  p_order jsonb
 )
 returns jsonb
 language plpgsql
