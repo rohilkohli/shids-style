@@ -2,12 +2,26 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "./lib/store";
-import { classNames, formatCurrency } from "./lib/utils";
+import { classNames } from "./lib/utils";
+import { validateEmail, normalizeEmail } from "./lib/emailValidation";
 import type { Category, Product } from "./lib/types";
 import CartDrawer from "./components/CartDrawer";
 import HeroCarousel, { HeroItem } from "./components/HeroCarousel";
+import { ProductQuickView } from "./components/ProductQuickView";
+import { HomePageSkeleton } from "./components/Skeleton";
+import { ProductShowcaseSection, getNewArrivals, getBestSellers } from "./components/ProductShowcase";
+import { SearchAutocomplete } from "./components/SearchAutocomplete";
+import UnifiedProductCard from "./components/UnifiedProductCard";
+
+const TESTIMONIALS = [
+  { id: 1, name: "Priya S.", text: "The quality exceeded my expectations! Fast delivery and amazing fit.", rating: 5, location: "Mumbai" },
+  { id: 2, name: "Rahul M.", text: "Best online shopping experience I've had. Will definitely order again.", rating: 5, location: "Delhi" },
+  { id: 3, name: "Anita K.", text: "Love the unique designs. Got so many compliments on my new outfit!", rating: 5, location: "Bangalore" },
+  { id: 4, name: "Vikram P.", text: "Great customer service when I needed to exchange sizes. Highly recommend!", rating: 4, location: "Chennai" },
+  { id: 5, name: "Meera R.", text: "The fabric quality is amazing for this price point. Very happy customer.", rating: 5, location: "Hyderabad" },
+];
 
 const SHIPPING_DURATION = "48 hours";
 
@@ -23,150 +37,6 @@ const discountPercentValue = (product: Product) => {
   return product.discountPercent ?? (compareAt > sale ? Math.max(0, Math.round(((compareAt - sale) / compareAt) * 100)) : 0);
 };
 
-function ProductCard({
-  product,
-  wished,
-  onWishlist,
-  onAdd,
-}: {
-  product: Product;
-  wished: boolean;
-  onWishlist: (id: string) => void;
-  onAdd: (product: Product) => void;
-}) {
-  const { sale, compareAt } = getProductPrice(product);
-  const rawDiscount = discountPercentValue(product);
-  const computedDiscountPercent = rawDiscount > 0 ? rawDiscount : undefined;
-  const lowStock = product.stock > 0 && product.stock <= 3;
-
-  return (
-    <div className="group relative rounded-2xl overflow-hidden card-surface hover-3d">
-      <div className="absolute left-2 top-2 sm:left-3 sm:top-3 z-10 flex max-w-[70%] flex-col gap-1.5">
-        {product.badge && (
-          <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-gray-900 shadow leading-tight">
-            {product.badge}
-          </span>
-        )}
-        {computedDiscountPercent && (
-          <span className="inline-flex items-center rounded-full bg-[color:var(--primary)] px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-white shadow leading-tight">
-            -{computedDiscountPercent}%
-          </span>
-        )}
-        {lowStock && (
-          <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-amber-800 border border-amber-300 shadow leading-tight">
-            Low stock
-          </span>
-        )}
-      </div>
-      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
-        <button
-          className={classNames(
-            "rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-colors icon-button text-lg leading-none",
-            wished ? "bg-[color:var(--primary)] text-white border-transparent" : "hover:bg-[color:var(--primary-soft)]"
-          )}
-          onClick={() => onWishlist(product.id)}
-          aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
-          aria-pressed={wished}
-        >
-          {wished ? "♥" : "♡"}
-        </button>
-      </div>
-
-      <Link href={`/products/${product.slug}`}>
-        <div className="aspect-[3/4] overflow-hidden bg-gray-50 relative">
-          <Image
-            src={product.images?.[0] ?? "/file.svg"}
-            alt={product.name}
-            fill
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-            quality={80}
-            className="object-cover transition duration-500 group-hover:scale-105"
-          />
-        </div>
-      </Link>
-
-      <div className="p-3 sm:p-4 space-y-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <Link href={`/products/${product.slug}`} className="flex-1">
-            <h3 className="text-[13px] sm:text-base font-medium text-gray-900 hover:underline line-clamp-2">
-              {product.name}
-            </h3>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-[11px] sm:text-sm text-gray-500">
-          <span>{product.category}</span>
-          {product.rating ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[10px] sm:text-[11px] font-semibold text-gray-700">
-              <svg viewBox="0 0 24 24" className="h-3 w-3 text-amber-500" fill="currentColor" aria-hidden="true">
-                <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-              </svg>
-              {product.rating.toFixed(1)}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[10px] sm:text-[11px] font-semibold text-gray-700" aria-label="Fresh drop">
-              Fresh drop
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-base font-semibold text-gray-900">{formatCurrency(sale)}</span>
-          {compareAt !== sale && (
-            <span className="text-sm text-gray-400 line-through">{formatCurrency(compareAt)}</span>
-          )}
-        </div>
-
-        {product.colors?.length ? (
-          <div className="flex items-center gap-1.5">
-            {product.colors.slice(0, 4).map((color, idx) => (
-              <span
-                key={`${color}-${idx}`}
-                className="h-4 w-4 sm:h-5 sm:w-5 rounded-full border border-black/10 shadow-sm"
-                style={{ backgroundColor: color }}
-                aria-label={`Color ${color}`}
-              />
-            ))}
-            {product.colors.length > 4 && (
-              <span className="text-[10px] sm:text-[11px] text-gray-600 font-semibold">
-                +{product.colors.length - 4}
-              </span>
-            )}
-          </div>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-600">
-          <span
-            className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 border border-gray-200"
-            aria-label={`Ships in ${SHIPPING_DURATION}`}
-          >
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              <path d="M3 7h11l5 5v5H3Z" />
-              <circle cx="7.5" cy="17" r="1.5" />
-              <circle cx="16" cy="17" r="1.5" />
-              <path d="M14 7v5h5" />
-            </svg>
-            Ships in {SHIPPING_DURATION}
-          </span>
-          {lowStock && (
-            <span className="text-[10px] sm:text-[11px] font-semibold text-amber-700">
-              Only {product.stock} left
-            </span>
-          )}
-        </div>
-
-        <button
-          className="w-full rounded-full btn-primary px-4 py-2.5 text-xs sm:text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-300"
-          onClick={() => onAdd(product)}
-          disabled={product.stock === 0}
-        >
-          {product.stock === 0 ? "Sold Out" : "Add to Bag"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function HomeClient({ initialHeroItems }: { initialHeroItems: HeroItem[] }) {
   const {
     products,
@@ -179,21 +49,36 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
   const [filters, setFilters] = useState<FilterState>({ search: "", category: "All" });
   const [sortKey, setSortKey] = useState<SortKey>("featured");
   const [showCart, setShowCart] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState<string | null>(null);
+  const [newsletterStatus, setNewsletterStatus] = useState<"idle" | "success" | "error">("idle");
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [heroItems] = useState<HeroItem[]>(initialHeroItems);
   const [categoryItems, setCategoryItems] = useState<Category[]>([]);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
   const categoryNames = useMemo(() => {
-    if (categoryItems.length) {
-      return categoryItems.map((category) => category.name).filter(Boolean);
-    }
-    return Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
+    if (categoryItems.length) return categoryItems.map((item) => item.name).filter(Boolean);
+    return Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
   }, [categoryItems, products]);
-  const categories = useMemo(() => ["All", ...categoryNames], [categoryNames]);
+
+  // Only show categories that have products
+  const categories = useMemo(() => {
+    const categoriesWithProducts = categoryNames.filter(cat =>
+      products.some(p => p.category === cat)
+    );
+    return ["All", ...categoriesWithProducts];
+  }, [categoryNames, products]);
   const featuredCategories = useMemo<Category[]>(() => {
-    if (categoryItems.length) return categoryItems.slice(0, 3);
+    if (categoryItems.length) {
+      return categoryItems
+        .filter((cat) =>
+          // include only if there's a product in this category
+          products.some((p) => p.category === cat.name) ||
+          // or if category explicitly references a featured product that exists
+          (cat.featuredProductId !== undefined && products.some((p) => p.id === cat.featuredProductId))
+        )
+        .slice(0, 3);
+    }
     const buildFallback = (name: string, index: number) => ({
       id: -(index + 1),
       name,
@@ -205,7 +90,7 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
     }
     const fallbacks = ["New Arrivals", "Signature Fits", "Everyday Essentials"];
     return [...categoryNames, ...fallbacks].slice(0, 3).map(buildFallback);
-  }, [categoryItems, categoryNames]);
+  }, [categoryItems, categoryNames, products]);
 
   const scrollToSection = useCallback((id: string) => {
     const el = document.getElementById(id);
@@ -225,7 +110,6 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
     const handleKeydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         handleSearchChange("");
-        setSearchExpanded(false);
       }
     };
     window.addEventListener("keydown", handleKeydown);
@@ -249,6 +133,14 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
     return () => {
       isActive = false;
     };
+  }, []);
+
+  // Testimonials rotation
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTestimonialIndex((prev) => (prev + 1) % TESTIMONIALS.length);
+    }, 5000);
+    return () => clearInterval(timer);
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -307,18 +199,12 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
 
   useEffect(() => {
     if (filters.category !== "All" && !categories.includes(filters.category)) {
-      setFilters((prev) => ({ ...prev, category: "All" }));
+      requestAnimationFrame(() => setFilters((prev) => ({ ...prev, category: "All" })));
     }
   }, [categories, filters.category]);
 
   if (!ready) {
-    return (
-      <main className="min-h-screen bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-24 text-center text-lg font-medium text-gray-600">
-          Loading SHIDS STYLE...
-        </div>
-      </main>
-    );
+    return <HomePageSkeleton />;
   }
 
   return (
@@ -346,13 +232,31 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
                   className="object-cover transition duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
-                  <h3 className="font-display text-2xl sm:text-3xl font-bold text-white">{item.category.name}</h3>
+                  <h3 className="font-display text-xl sm:text-2xl font-semibold text-white">{item.category.name}</h3>
                 </div>
               </Link>
             ))}
           </div>
         </div>
       </section>
+
+      {/* New Arrivals Section */}
+      <ProductShowcaseSection
+        title="New Arrivals"
+        subtitle="Fresh drops just for you"
+        products={getNewArrivals(products, 4)}
+        icon="new"
+        viewAllLink="/shop?sort=newest"
+      />
+
+      {/* Best Sellers Section */}
+      <ProductShowcaseSection
+        title="Best Sellers"
+        subtitle="Top rated by our community"
+        products={getBestSellers(products, 4)}
+        icon="trending"
+        viewAllLink="/shop?sort=rating"
+      />
 
       {/* Product Grid Section */}
       <section id="products" className="py-10 sm:py-16 section-tint">
@@ -362,34 +266,11 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">All Collection</h2>
               <p className="text-sm text-gray-500">Unmatched design and superior comfort.</p>
             </div>
-            <button
-              type="button"
-              className={`flex items-center h-10 rounded-full px-3 transition-all duration-300 border border-transparent ${
-                searchExpanded ? "w-64 bg-gray-200/80 border-gray-200 shadow" : "w-10 bg-transparent"
-              }`}
-              onClick={() => {
-                setSearchExpanded(true);
-                setTimeout(() => searchInputRef.current?.focus(), 0);
-              }}
-              aria-label="Search"
-              aria-expanded={searchExpanded}
-            >
-              <input
-                ref={searchInputRef}
-                type="text"
-                className={`w-full bg-transparent text-sm text-gray-700 placeholder-gray-500 outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-black/10 ${
-                  searchExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
-                }`}
-                placeholder="I'm looking for..."
-                value={filters.search}
-                onChange={(event) => handleSearchChange(event.target.value)}
-                onBlur={() => {
-                  if (!filters.search.trim()) {
-                    setSearchExpanded(false);
-                  }
-                }}
-              />
-            </button>
+            <SearchAutocomplete
+              onSearch={handleSearchChange}
+              placeholder="Search products..."
+              className="w-full sm:w-80"
+            />
           </div>
           {/* Filters */}
           <div className="mb-8 space-y-4 frosted-rail px-4 py-3 sm:py-4 rounded-3xl sm:rounded-full">
@@ -457,14 +338,34 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
                   shouldCenterProducts ? "w-[46%] sm:w-[220px] lg:w-[250px]" : "w-full"
                 )}
               >
-                <ProductCard
-                  product={product}
+                <UnifiedProductCard
+                  id={product.id}
+                  name={product.name}
+                  image={product.images?.[0] ?? "/file.svg"}
+                  price={getProductPrice(product).sale}
+                  oldPrice={getProductPrice(product).compareAt}
+                  bestseller={product.bestseller}
+                  badge={product.badge}
+                  discountPercent={product.discountPercent}
+                  stock={product.stock}
+                  variants={product.variants}
+                  
+                  category={product.category}
+                  rating={product.rating}
+                  colors={product.colors}
+                  slug={product.slug}
                   wished={wishlist.includes(product.id)}
                   onWishlist={toggleWishlist}
-                  onAdd={(p) => {
-                    addToCart({ productId: p.id, quantity: 1 });
-                    setShowCart(true);
-                  }}
+                  onAdd={() => {
+                      if (product.variants && product.variants.length === 1) {
+                        const v = product.variants[0];
+                        addToCart({ productId: product.id, quantity: 1, variantId: v.id, color: v.color, size: v.size });
+                        setShowCart(true);
+                      } else {
+                        setQuickViewProduct(product);
+                      }
+                    }}
+                  onClick={() => setQuickViewProduct(product)}
                 />
               </div>
             ))}
@@ -479,24 +380,69 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
             <h2 className="mt-3 text-2xl sm:text-3xl font-bold text-gray-900">Loved by the SHIDS community</h2>
             <p className="mt-2 text-sm text-gray-500">Real feedback from customers who wear us daily.</p>
           </div>
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            {[
-              {
-                name: "Nisha R.",
-                text: "The fabric feels premium and the fit is exactly what I wanted. Shipping was quick too.",
-              },
-              {
-                name: "Aarav K.",
-                text: "Great quality and the colors stay fresh after washes. I’m already ordering a second piece.",
-              },
-              {
-                name: "Meera V.",
-                text: "Customer support was super helpful with size queries. Love the overall experience.",
-              },
-            ].map((review) => (
-              <div key={review.name} className="rounded-2xl glass-card p-5">
-                <p className="text-sm text-gray-700 leading-relaxed">“{review.text}”</p>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-gray-500">{review.name}</p>
+
+          {/* Featured rotating testimonial */}
+          <div className="mt-8 max-w-2xl mx-auto">
+            <div className="rounded-2xl glass-card p-6 sm:p-8 text-center relative overflow-hidden">
+              <div className="absolute -top-2 -left-2 text-6xl text-gray-200" aria-hidden="true">&ldquo;</div>
+              <p className="text-sm sm:text-base text-gray-700 mb-4 line-clamp-3 relative z-10">
+                {TESTIMONIALS[testimonialIndex].text}
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <svg
+                    key={i}
+                    viewBox="0 0 24 24"
+                    className={`h-4 w-4 ${i < TESTIMONIALS[testimonialIndex].rating ? "text-amber-400" : "text-gray-200"}`}
+                    fill="currentColor"
+                  >
+                    <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="mt-3 text-sm font-semibold text-gray-900">
+                {TESTIMONIALS[testimonialIndex].name}
+              </p>
+              <p className="text-xs text-gray-500">{TESTIMONIALS[testimonialIndex].location}</p>
+            </div>
+          </div>
+
+          {/* Navigation dots */}
+          <div className="flex justify-center gap-2 mt-4">
+            {TESTIMONIALS.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setTestimonialIndex(idx)}
+                className={`h-2 w-2 rounded-full transition-all ${idx === testimonialIndex
+                  ? "bg-gray-900 w-6"
+                  : "bg-gray-300 hover:bg-gray-400"
+                  }`}
+                aria-label={`View testimonial ${idx + 1}`}
+              />
+            ))}
+          </div>
+
+          {/* Static testimonial grid */}
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            {TESTIMONIALS.slice(0, 3).map((review) => (
+              <div key={review.id} className="rounded-2xl glass-card p-5">
+                <div className="flex items-center gap-1 mb-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <svg
+                      key={i}
+                      viewBox="0 0 24 24"
+                      className={`h-3 w-3 ${i < review.rating ? "text-amber-400" : "text-gray-200"}`}
+                      fill="currentColor"
+                    >
+                      <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">&ldquo;{review.text}&rdquo;</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-900">{review.name}</p>
+                  <p className="text-xs text-gray-500">{review.location}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -514,27 +460,39 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
               className="relative max-w-md mx-auto glass-card rounded-full"
               onSubmit={async (event) => {
                 event.preventDefault();
-                const normalized = newsletterEmail.trim().toLowerCase();
-                if (!normalized || !normalized.includes("@")) {
-                  setNewsletterMessage("Please enter a valid email.");
+                const validation = validateEmail(newsletterEmail);
+
+                if (!validation.isValid) {
+                  setNewsletterStatus("error");
+                  setNewsletterMessage(validation.error || "Please enter a valid email.");
+                  setTimeout(() => {
+                    setNewsletterMessage(null);
+                    setNewsletterStatus("idle");
+                  }, 4000);
                   return;
                 }
+
                 try {
                   const response = await fetch("/api/newsletter", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: normalized }),
+                    body: JSON.stringify({ email: normalizeEmail(newsletterEmail) }),
                   });
                   const json = await response.json();
                   if (!response.ok || !json.ok) {
                     throw new Error(json.error || "Subscription failed.");
                   }
                   setNewsletterEmail("");
-                  setNewsletterMessage("Thanks! You are subscribed.");
+                  setNewsletterStatus("success");
+                  setNewsletterMessage("Thanks! You're subscribed.");
                 } catch (error) {
+                  setNewsletterStatus("error");
                   setNewsletterMessage((error as Error).message);
                 }
-                setTimeout(() => setNewsletterMessage(null), 2500);
+                setTimeout(() => {
+                  setNewsletterMessage(null);
+                  setNewsletterStatus("idle");
+                }, 2500);
               }}
             >
               <input
@@ -556,7 +514,17 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
               </button>
             </form>
             {newsletterMessage && (
-              <p className="mt-3 text-xs text-gray-600" aria-live="polite">{newsletterMessage}</p>
+              <p
+                className={`mt-3 text-xs ${newsletterStatus === "success"
+                  ? "text-green-600"
+                  : newsletterStatus === "error"
+                    ? "text-red-600"
+                    : "text-gray-600"
+                  }`}
+                aria-live="polite"
+              >
+                {newsletterMessage}
+              </p>
             )}
           </div>
         </div>
@@ -618,6 +586,22 @@ export default function HomeClient({ initialHeroItems }: { initialHeroItems: Her
           </div>
         </div>
       </section>
+
+      {/* Quick View Modal */}
+      {quickViewProduct && (
+        <ProductQuickView
+          product={quickViewProduct}
+          isOpen={!!quickViewProduct}
+          onClose={() => setQuickViewProduct(null)}
+          onAddToCart={(product) => {
+            addToCart({ productId: product.id, quantity: 1 });
+            setQuickViewProduct(null);
+            setShowCart(true);
+          }}
+          onWishlist={toggleWishlist}
+          isWished={wishlist.includes(quickViewProduct.id)}
+        />
+      )}
 
       <CartDrawer
         isOpen={showCart}

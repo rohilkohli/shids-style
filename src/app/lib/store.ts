@@ -7,7 +7,7 @@ import { formatCurrency, slugify } from "./utils";
 import { supabase } from "./supabase/client";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
-const STORAGE_KEY = "shids-style/state/v1";
+const STORAGE_KEY = "shids-style/state/v2";
 const PRODUCTS_PAGE_SIZE = 12;
 
 const clamp = (value: number, min: number, max: number) =>
@@ -29,6 +29,7 @@ export type CreateOrderPayload = {
   notes?: string;
   shippingFee?: number;
   discountCode?: string;
+  orderId?: string; // Pre-generated order ID from payment page
 };
 
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -84,14 +85,15 @@ export function useCommerceStore() {
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>(storedState?.recentlyViewed ?? []);
 
   useEffect(() => {
-    setReady(true);
+    requestAnimationFrame(() => setReady(true));
   }, []);
 
   const safeGetSession = useCallback(async () => {
     try {
       return await supabase.auth.getSession();
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      // Gracefully handle network-related errors (AbortError, TimeoutError)
+      if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) {
         return { data: { session: null }, error: null };
       }
       return { data: { session: null }, error: error as Error };
@@ -226,7 +228,7 @@ export function useCommerceStore() {
         setProductsLoading(true);
         const discountsUrl = user?.role === "admin" ? "/api/discounts" : "/api/discounts?active=true";
         const [nextProductsPage, nextOrders, nextDiscounts] = await Promise.all([
-          apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`),
+          apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`, { cache: "no-store" }),
           apiRequest<Order[]>("/api/orders"),
           apiRequest<DiscountCode[]>(discountsUrl),
         ]);
@@ -262,14 +264,14 @@ export function useCommerceStore() {
     });
     const { data: subscription } = supabase.auth.onAuthStateChange(
       async (_event: AuthChangeEvent, session: Session | null) => {
-      sessionTokenRef.current = session?.access_token ?? null;
-      if (session?.user?.email) {
-        const profile = await fetchProfile(session.user.email);
-        setUser(profile ?? mapSupabaseUser(session.user));
-      } else {
-        setUser(null);
+        sessionTokenRef.current = session?.access_token ?? null;
+        if (session?.user?.email) {
+          const profile = await fetchProfile(session.user.email);
+          setUser(profile ?? mapSupabaseUser(session.user));
+        } else {
+          setUser(null);
+        }
       }
-    }
     );
     return () => {
       subscription?.subscription?.unsubscribe();
@@ -406,7 +408,7 @@ export function useCommerceStore() {
       const next = [...prev];
       const existingIndex = next.findIndex((entry) => getVariantKey(entry) === key);
       const existing = existingIndex >= 0 ? next[existingIndex] : null;
-      
+
       const currentQty = existing?.quantity ?? 0;
       const desiredQty = clamp(currentQty + item.quantity, 1, limit);
 
@@ -486,7 +488,7 @@ export function useCommerceStore() {
     const normalizedCart = cart.map((item: CartItem) => {
       const product = products.find((p: Product) => p.id === item.productId);
       if (!product) return item;
-      
+
       let limit = product.stock;
       if (item.variantId && product.variants) {
         const variant = product.variants.find(v => v.id === item.variantId);
@@ -504,6 +506,7 @@ export function useCommerceStore() {
         notes: payload.notes,
         shippingFee: payload.shippingFee,
         discountCode: payload.discountCode,
+        orderId: payload.orderId,
         items: normalizedCart,
       }),
     });

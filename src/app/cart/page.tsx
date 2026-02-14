@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
 import { formatCurrency } from "../lib/utils";
 import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
+import { useRouter } from "next/navigation";
 
 export default function CartPage() {
   const { cart, products, updateCartQuantity, removeFromCart } = useCommerceStore();
@@ -26,6 +27,8 @@ export default function CartPage() {
   }, [cart, products]);
 
   const subtotal = items.reduce((sum, item) => sum + item!.price * item!.quantity, 0);
+  const router = useRouter();
+  const [stockError, setStockError] = useState<string | null>(null);
 
   if (items.length === 0) {
     return (
@@ -95,18 +98,28 @@ export default function CartPage() {
                         -
                       </button>
                       <span className="text-sm font-medium text-gray-900 w-6 text-center">{item!.quantity}</span>
-                      <button
-                        className="w-7 h-7 rounded-full hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                        onClick={() => updateCartQuantity(item!, item!.quantity + 1)}
-                        aria-label={`Increase quantity of ${item!.product.name}`}
-                      >
-                        +
-                      </button>
+                      {(() => {
+                        const stock = item!.product.stock ?? 999;
+                        const atMax = item!.quantity >= stock;
+                        return (
+                          <button
+                            className={`w-7 h-7 rounded-full ${atMax ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
+                            onClick={() => updateCartQuantity(item!, Math.min(stock, item!.quantity + 1))}
+                            aria-label={`Increase quantity of ${item!.product.name}`}
+                            disabled={atMax}
+                          >
+                            +
+                          </button>
+                        );
+                      })()}
                     </div>
                     <p className="text-sm font-semibold text-gray-900">
                       {formatCurrency(item!.price * item!.quantity)}
                     </p>
                   </div>
+                  {item!.product.stock !== undefined && (
+                    <p className="mt-2 text-xs text-rose-600">{item!.product.stock - item!.quantity > 0 ? (item!.product.stock - item!.quantity <= 5 ? `Only ${item!.product.stock - item!.quantity} left in stock` : null) : "Out of stock"}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -128,12 +141,24 @@ export default function CartPage() {
                 <span className="font-semibold">{formatCurrency(subtotal)}</span>
               </div>
             </div>
-            <Link
-              href="/shipping"
+            <button
+              type="button"
               className="mt-6 w-full inline-flex justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              onClick={() => {
+                const problematic = items.find((it) => (it!.product.stock ?? 999) < it!.quantity);
+                if (problematic) {
+                  setStockError(`Some items exceed available stock. Reduce quantity for "${problematic!.product.name}".`);
+                  return;
+                }
+                router.push('/shipping');
+              }}
             >
               Add Shipping Details
-            </Link>
+            </button>
+            {stockError && <p className="mt-3 text-xs text-rose-600">{stockError}</p>}
+            <div className="mt-4 text-xs text-gray-600 text-center">
+              <span className="font-semibold">No account?</span> You can <span className="font-semibold">checkout as a guest</span> on the next step.
+            </div>
           </div>
         </div>
       </div>

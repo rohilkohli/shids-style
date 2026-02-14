@@ -5,6 +5,7 @@ import type { Order } from "@/app/lib/types";
 import { Resend } from "resend";
 import OrderReceipt from "@/app/components/emails/OrderReceipt";
 import { generateShortOrderId } from "@/app/lib/orderId";
+import { generateTrackingToken, saveTrackingToken } from "@/app/lib/trackingToken";
 
 type OrderItemRow = {
   product_id: string;
@@ -137,6 +138,10 @@ export async function POST(request: NextRequest) {
   // Allow anyone to CREATE an order (Guest checkout), but validation is good.
   // Ideally, we link it to the user if they are logged in.
   
+  // Check if user is logged in
+  const user = await getUser(request);
+  const isGuest = !user;
+  
   const body = (await request.json()) as {
     email?: string;
     address?: string;
@@ -145,6 +150,7 @@ export async function POST(request: NextRequest) {
     notes?: string;
     name?: string;
     discountCode?: string;
+    orderId?: string; // Pre-generated order ID from client
   };
   const now = new Date().toISOString();
 
@@ -274,18 +280,35 @@ export async function POST(request: NextRequest) {
   }
 
   let orderId = "";
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const candidate = generateShortOrderId();
+  
+  // Try to use client-provided orderId if it matches expected format
+  if (body.orderId && /^SHIDS-[A-Z0-9]{4}$/.test(body.orderId)) {
     const { data: existing } = await supabaseAdmin
       .from("orders")
       .select("id")
-      .eq("id", candidate)
+      .eq("id", body.orderId)
       .maybeSingle();
     if (!existing) {
-      orderId = candidate;
-      break;
+      orderId = body.orderId;
     }
   }
+  
+  // Fall back to generating a new ID if client ID was not usable
+  if (!orderId) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = generateShortOrderId();
+      const { data: existing } = await supabaseAdmin
+        .from("orders")
+        .select("id")
+        .eq("id", candidate)
+        .maybeSingle();
+      if (!existing) {
+        orderId = candidate;
+        break;
+      }
+    }
+  }
+  
   if (!orderId) {
     await supabaseAdmin.rpc("release_order_stock", { items: stockItems });
     return NextResponse.json({ ok: false, error: "Failed to generate order ID." }, { status: 500 });
@@ -305,7 +328,8 @@ export async function POST(request: NextRequest) {
       discount_code: appliedDiscountCode,
       discount_amount: discountAmount || null,
       total,
-      created_at: now
+      created_at: now,
+      is_guest: isGuest,
     })
     .select()
     .single();
@@ -313,6 +337,13 @@ export async function POST(request: NextRequest) {
   if (orderError) {
     await supabaseAdmin.rpc("release_order_stock", { items: stockItems });
     return NextResponse.json({ ok: false, error: orderError.message }, { status: 500 });
+  }
+
+  // Generate tracking token for guest orders
+  let trackingToken: string | null = null;
+  if (isGuest) {
+    trackingToken = generateTrackingToken(orderId);
+    await saveTrackingToken(orderId, trackingToken);
   }
 
   // 2. Create Order Items
@@ -387,6 +418,7 @@ export async function POST(request: NextRequest) {
       ...order,
       discountCode: order.discount_code ?? undefined,
       discountAmount: order.discount_amount ?? undefined,
+      trackingToken, // Include for guest orders only
       items: orderItems.map((item) => ({
         productId: item.product_id,
         quantity: item.quantity,

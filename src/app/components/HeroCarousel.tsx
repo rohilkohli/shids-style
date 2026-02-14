@@ -55,7 +55,7 @@ export default function HeroCarousel({ items }: { items: HeroItem[] }) {
             priority={index === safeIndex}
             sizes="100vw"
             quality={85}
-            className="absolute inset-0 object-cover object-[center_top] sm:object-center"
+            className="absolute inset-0 object-cover object-center"
           />
         </Link>
       ))}

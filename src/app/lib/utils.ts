@@ -3,6 +3,13 @@ const DEFAULT_CURRENCY = "INR";
 export const formatCurrency = (value: number, currency: string = DEFAULT_CURRENCY) =>
   value.toLocaleString("en-IN", { style: "currency", currency });
 
+export const toTitleCase = (value: string) =>
+  value
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
 export const classNames = (
   ...classes: Array<string | false | null | undefined>
 ): string => classes.filter(Boolean).join(" ");

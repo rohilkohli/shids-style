@@ -84,7 +84,7 @@ export default function ProductDetail({ params }: { params: { slug: string } }) 
 
             <div className="flex items-center gap-3">
               <span className="text-3xl font-semibold text-gray-900">{formatCurrency(sale)}</span>
-              {compareAt !== sale && (
+              {product.discountPercent && product.discountPercent > 0 && compareAt !== sale && (
                 <>
                   <span className="text-xl text-gray-400 line-through">{formatCurrency(compareAt)}</span>
                   <span className="rounded-full bg-black text-white text-xs px-3 py-1 font-medium">
@@ -123,11 +123,14 @@ export default function ProductDetail({ params }: { params: { slug: string } }) 
               <div>
                 <h3 className="text-sm font-medium text-gray-900 mb-2">Available Colors</h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.colors.map((color: string) => (
-                    <span key={color} className="px-3 py-1 text-sm border border-gray-200 rounded-full bg-gray-50">
-                      {color}
-                    </span>
-                  ))}
+                  {product.colors.map((color) => {
+                    const name = typeof color === "string" ? color : color.name;
+                    return (
+                      <span key={name} className="px-3 py-1 text-sm border border-gray-200 rounded-full bg-gray-50">
+                        {name}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}

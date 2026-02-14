@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { getProductPrice, useCommerceStore } from "../lib/store";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, toTitleCase } from "../lib/utils";
 
 type CartDrawerProps = {
   isOpen: boolean;
@@ -16,6 +16,7 @@ type CartDrawerProps = {
 
 export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = false }: CartDrawerProps) {
   const { cart, products, updateCartQuantity, removeFromCart } = useCommerceStore();
+  const [stockError, setStockError] = useState<string | null>(null);
   const canPortal = typeof document !== "undefined";
 
   const itemCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
@@ -88,6 +89,8 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
                     const product = products.find((p) => p.id === item.productId);
                     if (!product) return null;
                     const { sale } = getProductPrice(product);
+                    const stock = product.stock ?? 999;
+                    const atMax = item.quantity >= stock;
                     return (
                       <div key={`${item.productId}-${item.size}-${item.color}`} className="flex gap-3 text-xs sm:text-sm">
                         <div className="relative w-16 h-20 rounded overflow-hidden bg-gray-50">
@@ -101,7 +104,7 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
                           />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{product.name}</p>
+                          <p className="font-medium text-gray-900">{toTitleCase(product.name)}</p>
                           <p className="text-xs text-gray-500">
                             {item.size ? `Size: ${item.size}` : "Standard"}
                             {item.color ? ` • ${item.color}` : ""}
@@ -115,8 +118,9 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
                             </button>
                             <span className="text-xs sm:text-sm w-6 text-center">{item.quantity}</span>
                             <button
-                              className="w-7 h-7 rounded-full btn-soft"
-                              onClick={() => updateCartQuantity(item, item.quantity + 1)}
+                              className={`w-7 h-7 rounded-full btn-soft ${atMax ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`}
+                              onClick={() => updateCartQuantity(item, Math.min(stock, item.quantity + 1))}
+                              disabled={atMax}
                             >
                               +
                             </button>
@@ -128,7 +132,12 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
                             </button>
                           </div>
                         </div>
-                        <p className="font-semibold text-gray-900">{formatCurrency(sale * item.quantity)}</p>
+                        <div className="flex flex-col items-end">
+                          <p className="font-semibold text-gray-900">{formatCurrency(sale * item.quantity)}</p>
+                          {product.stock !== undefined && (
+                            <p className="text-xxs mt-1 text-rose-600">{product.stock - item.quantity > 0 ? (product.stock - item.quantity <= 5 ? `Only ${product.stock - item.quantity} left` : null) : "Out of stock"}</p>
+                          )}
+                        </div>
                       </div>
                     );
                   })
@@ -141,13 +150,26 @@ export default function CartDrawer({ isOpen, onOpen, onClose, hideTrigger = fals
                     <span>Subtotal</span>
                     <span>{formatCurrency(subtotal)}</span>
                   </div>
-                  <Link
-                    href="/shipping"
+                  <button
+                    type="button"
                     className="w-full inline-flex justify-center rounded-full btn-primary px-6 py-3 text-xs sm:text-sm font-medium transition"
-                    onClick={onClose}
+                    onClick={() => {
+                      const problematic = cart.map((it) => {
+                        const product = products.find((p) => p.id === it.productId);
+                        return { item: it, product };
+                      }).find((r) => (r.product?.stock ?? 999) < r.item.quantity);
+                      if (problematic) {
+                        setStockError(`Some items exceed available stock. Reduce quantity for "${problematic.product!.name}".`);
+                        return;
+                      }
+                      onClose();
+                      // navigate to shipping after close; using location push to avoid importing router here
+                      window.location.href = '/shipping';
+                    }}
                   >
                     Checkout
-                  </Link>
+                  </button>
+                  {stockError && <p className="mt-2 text-xs text-rose-600">{stockError}</p>}
                 </div>
               )}
             </aside>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useMemo } from "react";
 import { useCommerceStore, getProductPrice } from "../lib/store";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, toTitleCase } from "../lib/utils";
 import type { Product } from "../lib/types";
 
 export default function RecentlyViewedPage() {
@@ -72,7 +72,7 @@ export default function RecentlyViewedPage() {
                       />
                     </div>
                     <div className="mt-4 space-y-2">
-                      <p className="text-sm font-semibold text-gray-900">{product.name}</p>
+                      <p className="text-sm font-semibold text-gray-900">{toTitleCase(product.name)}</p>
                       <p className="text-xs text-gray-500">{product.category}</p>
                       <div className="flex items-center gap-2 text-sm">
                         <span className="font-semibold text-gray-900">{formatCurrency(sale)}</span>

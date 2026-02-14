@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, toTitleCase } from "../lib/utils";
 import CartDrawer from "../components/CartDrawer";
 import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function ShippingPage() {
   const router = useRouter();
   const { cart, products, user, discountCodes, updateUser } = useCommerceStore();
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const [form, setForm] = useState<{
     fullName: string | null;
     email: string | null;
@@ -70,6 +71,12 @@ export default function ShippingPage() {
     value: number;
   } | null>(() => readStoredDiscount());
 
+  // Fix hydration: Only render store-dependent content after client mount
+  useEffect(() => {
+    // Defer to avoid synchronous setState inside effect
+    requestAnimationFrame(() => setIsClientMounted(true));
+  }, []);
+
   const resolvedForm = {
     ...form,
     fullName: form.fullName ?? user?.name ?? "",
@@ -105,6 +112,13 @@ export default function ShippingPage() {
 
   const handleSubmit = async () => {
     setMessage(null);
+
+    // Require full name for all orders (especially important for guests)
+    if (!resolvedForm.fullName.trim()) {
+      setMessage("Full name is required.");
+      return;
+    }
+
     if (!resolvedForm.email.trim() || !resolvedForm.phone.trim()) {
       setMessage("Email and contact number are required.");
       return;
@@ -158,6 +172,20 @@ export default function ShippingPage() {
     router.push("/payment");
   };
 
+  // Prevent hydration mismatch: wait for client mount before checking cart
+  if (!isClientMounted) {
+    return (
+      <main className="min-h-screen bg-[color:var(--background)]">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+          <div className="h-8 w-64 bg-gray-200 rounded animate-pulse mb-6" />
+          <div className="rounded-2xl border border-gray-100 bg-white/90 p-8 shadow-sm">
+            <div className="h-8 w-48 mx-auto bg-gray-200 rounded animate-pulse" />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (cart.length === 0) {
     return (
       <main className="min-h-screen bg-[color:var(--background)]">
@@ -185,6 +213,7 @@ export default function ShippingPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Shipping Details</h1>
             <p className="text-xs sm:text-sm text-gray-500">Step 1 of 2</p>
+            <p className="mt-1 text-xs text-green-700 font-medium">You can checkout as a guest. No account required!</p>
           </div>
           <div className="text-xs text-gray-500">
             Free shipping over {formatCurrency(999)}
@@ -212,12 +241,13 @@ export default function ShippingPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-gray-700">
-                Full Name
+                Full Name <span className="text-red-500">*</span>
                 <input
+                  required
                   autoComplete="name"
                   placeholder="Rahul Sharma"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                    value={resolvedForm.fullName}
+                  value={resolvedForm.fullName}
                   onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
                 />
               </label>
@@ -229,7 +259,7 @@ export default function ShippingPage() {
                   autoComplete="email"
                   placeholder="you@email.com"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                    value={resolvedForm.email}
+                  value={resolvedForm.email}
                   onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
               </label>
@@ -242,7 +272,7 @@ export default function ShippingPage() {
                   autoComplete="tel"
                   placeholder="+91 98765 43210"
                   className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                    value={resolvedForm.phone}
+                  value={resolvedForm.phone}
                   onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
                 />
               </label>
@@ -361,7 +391,7 @@ export default function ShippingPage() {
                       />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</p>
+                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{toTitleCase(product.name)}</p>
                       <p className="text-xs text-gray-500">
                         {item.color ? `Color: ${item.color}` : ""} {item.size ? `· Size: ${item.size}` : ""}
                       </p>

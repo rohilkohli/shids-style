@@ -7,16 +7,38 @@ import type { Order } from "../lib/types";
 import { formatCurrency, formatDateTime } from "../lib/utils";
 import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
+type TrackMode = "orderId" | "token";
+
 export default function TrackClient() {
   const searchParams = useSearchParams();
+  const [mode, setMode] = useState<TrackMode>("orderId");
   const [orderId, setOrderId] = useState("");
   const [email, setEmail] = useState("");
+  const [trackingToken, setTrackingToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
   const autoTrackedRef = useRef(false);
   const formatStatus = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
   const formatOrderId = (value: string) => (value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-6)}` : value);
+
+  const handleTrackByToken = useCallback(async (token: string) => {
+    setLoading(true);
+    setError(null);
+    setOrder(null);
+    try {
+      const response = await fetch(`/api/orders/track?token=${encodeURIComponent(token)}`);
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || "Invalid or expired tracking link");
+      }
+      setOrder(json.data as Order);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleTrack = useCallback(async (nextOrderId?: string, nextEmail?: string) => {
     setLoading(true);
@@ -43,6 +65,17 @@ export default function TrackClient() {
   }, [email, orderId]);
 
   useEffect(() => {
+    // Check for token parameter first (for guest tracking links)
+    const tokenParam = searchParams.get("token");
+    if (tokenParam && !autoTrackedRef.current) {
+      setMode("token");
+      setTrackingToken(tokenParam);
+      autoTrackedRef.current = true;
+      void handleTrackByToken(tokenParam);
+      return;
+    }
+
+    // Existing order ID + email tracking
     const orderIdParam = searchParams.get("orderId") ?? "";
     const emailParam = searchParams.get("email") ?? "";
     if (orderIdParam || emailParam) {
@@ -53,7 +86,7 @@ export default function TrackClient() {
       autoTrackedRef.current = true;
       void handleTrack(orderIdParam, emailParam);
     }
-  }, [handleTrack, searchParams]);
+  }, [handleTrack, handleTrackByToken, searchParams]);
 
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
@@ -63,47 +96,118 @@ export default function TrackClient() {
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Track Your Order</h1>
             <p className="text-sm text-gray-600">
-              Enter your order ID and email to see real-time status updates.
+              Enter your order details to see real-time status updates.
             </p>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700">
-              Order ID
-              <input
-                className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                placeholder="ORD-XXXX"
-                value={orderId}
-                onChange={(event) => setOrderId(event.target.value)}
-              />
-            </label>
-            <label className="text-sm font-medium text-gray-700">
-              Email Address
-              <input
-                type="email"
-                className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
+          {/* Mode Tabs */}
+          <div className="mt-6 flex gap-2">
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                mode === "orderId"
+                  ? "bg-black text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              onClick={() => setMode("orderId")}
+            >
+              Track by Order ID
+            </button>
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                mode === "token"
+                  ? "bg-black text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              onClick={() => setMode("token")}
+            >
+              Track by Link
+            </button>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-              onClick={() => handleTrack()}
-              disabled={!orderId.trim() || !email.trim() || loading}
-            >
-              {loading ? "Checking..." : "Track Order"}
-            </button>
-            <Link
-              href="/shop"
-              className="rounded-full border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
-            >
-              Continue Shopping
-            </Link>
-          </div>
+          {mode === "orderId" ? (
+            <>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Order ID
+                  <input
+                    className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                    placeholder="ORD-XXXX"
+                    value={orderId}
+                    onChange={(event) => setOrderId(event.target.value)}
+                  />
+                </label>
+                <label className="text-sm font-medium text-gray-700">
+                  Email Address
+                  <input
+                    type="email"
+                    className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                  onClick={() => handleTrack()}
+                  disabled={!orderId.trim() || !email.trim() || loading}
+                >
+                  {loading ? "Checking..." : "Track Order"}
+                </button>
+                <Link
+                  href="/shop"
+                  className="rounded-full border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                >
+                  Continue Shopping
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-6">
+                <label className="text-sm font-medium text-gray-700">
+                  Tracking Token or Link
+                  <input
+                    className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                    placeholder="Paste your tracking link or token here"
+                    value={trackingToken}
+                    onChange={(event) => {
+                      let value = event.target.value;
+                      // Extract token from URL if pasted
+                      if (value.includes("token=")) {
+                        const url = new URL(value);
+                        value = url.searchParams.get("token") ?? value;
+                      }
+                      setTrackingToken(value);
+                    }}
+                  />
+                </label>
+                <p className="mt-2 text-xs text-gray-500">
+                  Paste the tracking link from your order confirmation email
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                  onClick={() => handleTrackByToken(trackingToken)}
+                  disabled={!trackingToken.trim() || loading}
+                >
+                  {loading ? "Checking..." : "Track Order"}
+                </button>
+                <Link
+                  href="/shop"
+                  className="rounded-full border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/10"
+                >
+                  Continue Shopping
+                </Link>
+              </div>
+            </>
+          )}
 
           {error && (
             <p className="mt-4 text-sm text-red-600" aria-live="polite">

@@ -185,3 +185,66 @@ export function WishlistSkeleton() {
     </div>
   );
 }
+
+export function HeroSkeleton() {
+  return (
+    <div className="relative h-[60vh] min-h-[400px] max-h-[600px] overflow-hidden">
+      <Skeleton className="absolute inset-0" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-4">
+        <Skeleton className="h-8 w-24 mb-4 rounded-full" />
+        <Skeleton className="h-12 w-[300px] sm:w-[400px] mb-4" />
+        <Skeleton className="h-10 w-32 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+export function HomePageSkeleton() {
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Hero skeleton */}
+      <HeroSkeleton />
+      
+      {/* Featured categories skeleton */}
+      <section className="py-10 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-[3/4] rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </section>
+      
+      {/* Products section skeleton */}
+      <section className="py-10 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center mb-8">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-20" />
+              <Skeleton className="h-8 w-48" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-10 w-28 rounded-lg" />
+              <Skeleton className="h-10 w-28 rounded-lg" />
+            </div>
+          </div>
+          <ProductGridSkeleton count={8} />
+        </div>
+      </section>
+      
+      {/* Testimonials skeleton */}
+      <section className="py-10 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <Skeleton className="h-5 w-24 mx-auto mb-2" />
+            <Skeleton className="h-8 w-64 mx-auto" />
+          </div>
+          <div className="max-w-2xl mx-auto">
+            <Skeleton className="h-48 w-full rounded-2xl" />
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}

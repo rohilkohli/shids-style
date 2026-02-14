@@ -4,11 +4,17 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCommerceStore, getProductPrice } from "@/app/lib/store";
-import { ShoppingBag, Star, Truck, ShieldCheck } from "lucide-react";
-import { formatCurrency, renderDescriptionHtml } from "@/app/lib/utils";
+import { ShoppingBag, Star, Truck, ShieldCheck, Ruler } from "lucide-react";
+import { formatCurrency, renderDescriptionHtml, toTitleCase } from "@/app/lib/utils";
 import { Breadcrumbs, breadcrumbConfigs } from "@/app/components/Breadcrumbs";
 import { ProductDetailSkeleton } from "@/app/components/Skeleton";
 import { useToast } from "@/app/components/Toast";
+import { ImageZoom } from "@/app/components/ImageZoom";
+import { SizeGuideModal } from "@/app/components/SizeGuideModal";
+import { SocialShareButtons } from "@/app/components/SocialShareButtons";
+import { ReviewsList } from "@/app/components/ReviewsList";
+import { SimpleReviewForm, SimpleReviewData } from "@/app/components/SimpleReviewForm";
+import type { Review, ReviewStats } from "@/app/lib/types";
 
 const useIsClient = () =>
   useSyncExternalStore(
@@ -34,21 +40,47 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"desc" | "specs" | "shipping">("desc");
   const [mainImage, setMainImage] = useState<string | null>(null);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<ReviewStats>({
+    averageRating: 0,
+    totalReviews: 0,
+    ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+  });
+
+  // If variants are present, derive available colors/sizes from variants
+  const availableColors = (product?.variants && product.variants.length > 0)
+    ? Array.from(new Set(product.variants.map((v) => v.color).filter(Boolean)))
+    : (product?.colors ?? []);
+
+  const availableSizes = (product?.variants && product.variants.length > 0)
+    ? Array.from(new Set(product.variants.map((v) => v.size).filter(Boolean)))
+    : (product?.sizes ?? []);
 
   const resolvedColor = (() => {
-    if (!product?.colors?.length) return null;
-    if (selectedColor && product.colors.includes(selectedColor)) return selectedColor;
-    return product.colors[0] ?? null;
+    if ((availableColors?.length ?? 0) === 0) return null;
+    if (selectedColor && availableColors.includes(selectedColor)) return selectedColor;
+    // prefer a color that has stock
+    if (product?.variants && product.variants.length > 0) {
+      const withStock = product.variants.find((v) => (v.color && v.stock > 0));
+      if (withStock && withStock.color) return withStock.color;
+    }
+    return availableColors[0] ?? null;
   })();
 
   const resolvedSize = (() => {
-    if (!product?.sizes?.length) return null;
-    if (selectedSize && product.sizes.includes(selectedSize)) return selectedSize;
-    return product.sizes[0] ?? null;
+    if ((availableSizes?.length ?? 0) === 0) return null;
+    if (selectedSize && availableSizes.includes(selectedSize)) return selectedSize;
+    if (product?.variants && product.variants.length > 0) {
+      const withStock = product.variants.find((v) => (v.size && v.stock > 0));
+      if (withStock && withStock.size) return withStock.size;
+    }
+    return availableSizes[0] ?? null;
   })();
 
   const resolvedMainImage = (() => {
-    if (!product?.images?.length) return null;
+    if (!(product?.images?.length)) return null;
     if (mainImage && product.images.includes(mainImage)) return mainImage;
     return product.images[0] ?? null;
   })();
@@ -86,29 +118,35 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const isWishlisted = wishlist.includes(product.id);
 
   // Find the matching variant for the selected color/size
-  const selectedVariant = product.variants?.find(
-    (v) => v.color === resolvedColor && v.size === resolvedSize
-  );
+  // Select variant by exact match, or fallback to first matching color or size
+  const selectedVariant = (() => {
+    if (!product?.variants || product.variants.length === 0) return undefined;
+    const exact = product.variants.find((v) => v.color === resolvedColor && v.size === resolvedSize);
+    if (exact) return exact;
+    // if only color or size selected, prioritize matching variant with stock
+    const byColor = resolvedColor ? product.variants.find((v) => v.color === resolvedColor && v.stock > 0) : undefined;
+    if (byColor) return byColor;
+    const bySize = resolvedSize ? product.variants.find((v) => v.size === resolvedSize && v.stock > 0) : undefined;
+    if (bySize) return bySize;
+    // fallback to first in-stock variant
+    return product.variants.find((v) => v.stock > 0) ?? product.variants[0];
+  })();
 
   // Use variant stock if available, otherwise fall back to product stock
   const currentStock = selectedVariant?.stock ?? product.stock;
-  
+
   // Helper to check if a specific size has any stock for the current color
   const isSizeAvailable = (size: string) => {
-    if (!product.variants || product.variants.length === 0) return true;
-    const variant = product.variants.find(
-      (v) => v.size === size && v.color === resolvedColor
-    );
-    return variant ? variant.stock > 0 : true;
+    if (!product?.variants || product.variants.length === 0) return true;
+    const variant = product.variants.find((v) => v.size === size && (!resolvedColor || v.color === resolvedColor));
+    return variant ? variant.stock > 0 : false;
   };
 
   // Helper to check if a specific color has any stock for the current size
   const isColorAvailable = (color: string) => {
-    if (!product.variants || product.variants.length === 0) return true;
-    const variant = product.variants.find(
-      (v) => v.color === color && v.size === resolvedSize
-    );
-    return variant ? variant.stock > 0 : true;
+    if (!product?.variants || product.variants.length === 0) return true;
+    const variant = product.variants.find((v) => v.color === color && (!resolvedSize || v.size === resolvedSize));
+    return variant ? variant.stock > 0 : false;
   };
 
   const clampQuantity = (next: number) => {
@@ -130,7 +168,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     addToCart({
       productId: product.id,
       quantity: resolvedQuantity,
-      color: resolvedColor || undefined,
+      color: typeof resolvedColor === "string" ? resolvedColor : (resolvedColor ? resolvedColor.name : undefined),
       size: resolvedSize || undefined,
       variantId: selectedVariant?.id,
     });
@@ -144,32 +182,30 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           <div className="space-y-6 animate-slide-up">
-            <div className="aspect-[4/5] relative bg-gray-100 rounded-2xl overflow-hidden shadow-lg group">
-              {product.badge && (
-                <div className="absolute top-4 left-4 bg-black text-white text-xs font-bold px-3 py-1 uppercase tracking-widest z-10">
-                  {product.badge}
-                </div>
-              )}
-              <Image
-                src={resolvedMainImage || "/placeholder.png"}
-                alt={product.name}
-                fill
-                sizes="(min-width: 1024px) 50vw, 100vw"
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
-                priority
-              />
-            </div>
+            <ImageZoom
+              src={resolvedMainImage || "/placeholder.png"}
+              alt={product.name}
+              badge={product.badge}
+            />
             <div className="grid grid-cols-4 gap-4">
               {product.images.map((img, idx) => (
                 <button
                   key={img}
                   onClick={() => setMainImage(img)}
-                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                    resolvedMainImage === img ? "border-black ring-1 ring-black/10" : "border-transparent hover:border-gray-200"
-                  }`}
+                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${resolvedMainImage === img ? "border-black ring-1 ring-black/10" : "border-transparent hover:border-gray-200"
+                    }`}
                   aria-label={`View image ${idx + 1}`}
                 >
-                  <Image src={img} alt={`${product.name} view ${idx + 1}`} fill sizes="96px" className="object-cover" />
+                  <Image
+                    src={img}
+                    alt={`${product.name} view ${idx + 1}`}
+                    fill
+                    sizes="96px"
+                    className="object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = "/placeholder.png";
+                    }}
+                  />
                 </button>
               ))}
             </div>
@@ -188,11 +224,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-4">{product.name}</h1>
+              <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-4">{toTitleCase(product.name)}</h1>
 
               <div className="flex items-baseline gap-4">
                 <span className="text-2xl font-semibold text-gray-900">{formatCurrency(sale)}</span>
-                {product.discountPercent && compareAt !== sale && (
+                {!!product.discountPercent && compareAt !== sale && (
                   <>
                     <span className="text-lg text-gray-400 line-through decoration-1">{formatCurrency(compareAt)}</span>
                     <span className="text-sm font-medium text-red-600 bg-red-50 px-2 py-1 rounded">
@@ -204,26 +240,43 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             </div>
 
             <div className="space-y-8">
-              {product.colors.length > 0 && (
+              {/* Colors */}
+              {product.colors && product.colors.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-4 uppercase tracking-wide">Color</h3>
-                  <div className="flex flex-wrap gap-3">
-                    {product.colors.map((color, idx) => {
-                      const available = isColorAvailable(color);
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Color: <span className="text-gray-500 font-normal">{typeof resolvedColor === 'string' ? resolvedColor : resolvedColor?.name}</span>
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {product.colors.map((color) => {
+                      // Handle both string (legacy) and object (new) color formats
+                      const colorName = typeof color === 'string' ? color : color.name;
+
+                      // Simple map for legacy string colors if needed, or just use name as background if it's a valid css color
+                      const bgStyle = typeof color === 'string'
+                        ? { backgroundColor: color.toLowerCase() }
+                        : { backgroundColor: color.hex };
+
+                      const available = isColorAvailable(colorName);
+
                       return (
                         <button
-                          key={`${color}-${idx}`}
-                          onClick={() => available && setSelectedColor(color)}
+                          key={colorName}
+                          onClick={() => available && setSelectedColor(colorName)}
                           disabled={!available}
-                          className={`px-6 py-2 rounded-full text-sm border transition-all ${
-                            !available
-                              ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
-                              : resolvedColor === color
-                                ? "border-black bg-black text-white shadow-md"
-                                : "border-gray-200 text-gray-600 hover:border-gray-400"
-                          }`}
+                          className={`
+                              h-10 w-10 rounded-full border-2 focus:outline-none flex items-center justify-center
+                              ${!available
+                              ? "border-gray-100 bg-gray-50 cursor-not-allowed"
+                              : resolvedColor === colorName
+                                ? "border-indigo-600 ring-2 ring-indigo-200 ring-offset-1"
+                                : "border-gray-200 hover:border-gray-300"}
+                            `}
+                          title={colorName}
                         >
-                          {color}
+                          <span
+                            className={`h-8 w-8 rounded-full border border-gray-100 ${!available ? 'opacity-50' : ''}`}
+                            style={bgStyle}
+                          />
                         </button>
                       );
                     })}
@@ -235,7 +288,14 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-sm font-medium text-gray-900 uppercase tracking-wide">Size</h3>
-                    <button className="text-xs text-gray-500 underline hover:text-black" type="button">Size Guide</button>
+                    <button
+                      className="text-xs text-gray-500 underline hover:text-black inline-flex items-center gap-1"
+                      type="button"
+                      onClick={() => setShowSizeGuide(true)}
+                    >
+                      <Ruler className="h-3 w-3" />
+                      Size Guide
+                    </button>
                   </div>
                   <div className="grid grid-cols-4 gap-3">
                     {product.sizes.map((size, idx) => {
@@ -245,13 +305,12 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                           key={`${size}-${idx}`}
                           onClick={() => available && setSelectedSize(size)}
                           disabled={!available}
-                          className={`py-3 rounded-lg text-sm border transition-all ${
-                            !available
-                              ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
-                              : resolvedSize === size
-                                ? "border-black bg-black text-white shadow-md"
-                                : "border-gray-200 text-gray-600 hover:border-gray-400"
-                          }`}
+                          className={`py-3 rounded-lg text-sm border transition-all ${!available
+                            ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through"
+                            : resolvedSize === size
+                              ? "border-black bg-black text-white shadow-md"
+                              : "border-gray-200 text-gray-600 hover:border-gray-400"
+                            }`}
                         >
                           {size}
                         </button>
@@ -299,15 +358,26 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               </button>
               <button
                 onClick={() => toggleWishlist(product.id)}
-                className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${
-                  isWishlisted
-                    ? "border-red-500 bg-red-50 text-red-500"
-                    : "border-gray-200 hover:border-black text-gray-500 hover:text-black"
-                }`}
+                className={`w-14 h-14 rounded-full border flex items-center justify-center transition-all ${isWishlisted
+                  ? "border-red-500 bg-red-50 text-red-500"
+                  : "border-gray-200 hover:border-black text-gray-500 hover:text-black"
+                  }`}
                 type="button"
               >
                 <Star className={`w-5 h-5 ${isWishlisted ? "fill-current" : ""}`} />
               </button>
+            </div>
+
+            {/* Social Sharing */}
+            <div className="flex items-center justify-between border-t border-gray-100 pt-6 mb-6">
+              <span className="text-sm font-medium text-gray-700">Share this product</span>
+              <SocialShareButtons
+                url={typeof window !== "undefined" ? window.location.href : `/products/${slug}`}
+                title={product.name}
+                description={`Check out ${product.name} - ${formatCurrency(sale)}`}
+                image={product.images?.[0]}
+                variant="icons"
+              />
             </div>
 
             <div className="border-t border-gray-100 pt-8">
@@ -316,9 +386,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`relative pb-3 text-sm font-semibold transition ${
-                      activeTab === tab ? "text-black" : "text-gray-400 hover:text-gray-600"
-                    }`}
+                    className={`relative pb-3 text-sm font-semibold transition ${activeTab === tab ? "text-black" : "text-gray-400 hover:text-gray-600"
+                      }`}
                     type="button"
                   >
                     {tab === "desc" ? "Description" : tab === "specs" ? "Details" : "Shipping"}
@@ -357,9 +426,69 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 )}
               </div>
             </div>
+
+            {/* Reviews Section */}
+            <div className="border-t border-gray-100 pt-8 mt-8">
+              {showReviewForm ? (
+                <SimpleReviewForm
+                  productId={product.id}
+                  productName={product.name}
+                  onCancel={() => setShowReviewForm(false)}
+                  onSubmit={async (data: SimpleReviewData) => {
+                    // Create a mock review (in production, this would be an API call)
+                    const newReview: Review = {
+                      id: `review-${Date.now()}`,
+                      productId: product.id,
+                      userName: data.userName,
+                      userEmail: data.userEmail,
+                      rating: data.rating,
+                      content: data.feedback,
+                      verified: true, // User is logged in
+                      helpful: 0,
+                      createdAt: new Date().toISOString(),
+                    };
+                    setReviews((prev) => [newReview, ...prev]);
+                    setReviewStats((prev) => {
+                      const newTotal = prev.totalReviews + 1;
+                      const newDist = { ...prev.ratingDistribution };
+                      newDist[data.rating as keyof typeof newDist]++;
+                      const newAvg =
+                        (prev.averageRating * prev.totalReviews + data.rating) / newTotal;
+                      return {
+                        averageRating: newAvg,
+                        totalReviews: newTotal,
+                        ratingDistribution: newDist,
+                      };
+                    });
+                    setShowReviewForm(false);
+                    toast.success("Thank you! Your review has been submitted.");
+                  }}
+                />
+              ) : (
+                <ReviewsList
+                  reviews={reviews}
+                  stats={reviewStats}
+                  onWriteReview={() => setShowReviewForm(true)}
+                  onHelpful={(reviewId) => {
+                    setReviews((prev) =>
+                      prev.map((r) =>
+                        r.id === reviewId ? { ...r, helpful: r.helpful + 1 } : r
+                      )
+                    );
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Size Guide Modal */}
+      <SizeGuideModal
+        isOpen={showSizeGuide}
+        onClose={() => setShowSizeGuide(false)}
+        category={product.category}
+      />
     </main>
   );
 }

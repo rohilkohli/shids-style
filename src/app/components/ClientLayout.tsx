@@ -6,6 +6,7 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import WhatsAppSticky from "./WhatsAppSticky";
 import { ToastProvider } from "./Toast";
+import { DialogProvider } from "./ConfirmDialog";
 
 export default function ClientLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -13,11 +14,13 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
   const isLogin = pathname === "/login";
 
   return (
-    <ToastProvider>
-      {!isAdmin && !isLogin && <Navbar />}
-      {children}
-      {!isAdmin && <Footer />}
-      {!isAdmin && <WhatsAppSticky />}
-    </ToastProvider>
+    <DialogProvider>
+      <ToastProvider>
+        {!isAdmin && !isLogin && <Navbar />}
+        {children}
+        {!isAdmin && <Footer />}
+        {!isAdmin && <WhatsAppSticky />}
+      </ToastProvider>
+    </DialogProvider>
   );
 }

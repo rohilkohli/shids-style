@@ -4,16 +4,16 @@ import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { slugify } from "@/app/lib/utils";
 import type { Product, Variant } from "@/app/lib/types";
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 const parseList = (value: unknown): string[] =>
   Array.isArray(value)
     ? value.map((item) => String(item)).filter(Boolean)
     : typeof value === "string"
       ? value
-          .split(/[,;]+/)
-          .map((item) => item.trim())
-          .filter(Boolean)
+        .split(/[,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
       : [];
 
 type VariantRow = {
@@ -41,6 +41,8 @@ type ProductRow = {
   sizes: string | null;
   highlights: string | null;
   images: string | null;
+  bestseller: boolean | null;
+  sku: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -75,6 +77,8 @@ const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
       : [],
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
   variants: variants ?? [],
+  bestseller: row.bestseller ?? false,
+  sku: row.sku ?? undefined,
 });
 
 // [NEW] Helper to check if user is admin
@@ -132,9 +136,9 @@ export async function GET(request: NextRequest) {
   const productIds = (data ?? []).map((p) => p.id);
   const { data: variantRows } = productIds.length > 0
     ? await supabaseAdmin
-        .from("product_variants")
-        .select("*")
-        .in("product_id", productIds)
+      .from("product_variants")
+      .select("*")
+      .in("product_id", productIds)
     : { data: [] };
 
   // Group variants by product_id
@@ -177,6 +181,16 @@ export async function POST(request: NextRequest) {
   const slug = body.slug?.trim() || slugify(name);
   const now = new Date().toISOString();
 
+  // [NEW] Numeric SKU auto-generation if missing
+  let sku = body.sku?.trim();
+  if (!sku) {
+    // Generate a random 10-digit numeric SKU (not guaranteed unique, but low collision risk)
+    sku = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+  }
+
+  // [NEW] Bestseller flag
+  const bestseller = typeof body.bestseller === 'boolean' ? body.bestseller : false;
+
   const payload: Product = {
     id,
     slug,
@@ -194,6 +208,8 @@ export async function POST(request: NextRequest) {
     sizes: parseList(body.sizes),
     highlights: parseList(body.highlights),
     images: parseList(body.images),
+    bestseller,
+    sku,
   };
 
   const { data, error } = await supabaseAdmin
@@ -217,6 +233,8 @@ export async function POST(request: NextRequest) {
       images: payload.images,
       created_at: now,
       updated_at: now,
+      bestseller,
+      sku,
     })
     .select("*")
     .single();
@@ -226,5 +244,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: status === 409 ? "Product already exists." : error.message }, { status });
   }
 
-  return NextResponse.json({ ok: true, data: mapProductRow(data) }, { status: 201 });
+  // If variants were provided in the request body, persist them to product_variants
+  try {
+    if (Array.isArray(body.variants) && body.variants.length > 0) {
+      const rows = body.variants.map((v: unknown) => {
+        const vv = v as Record<string, unknown>;
+        const size = typeof vv.size === "string" && vv.size ? vv.size : null;
+        const color = typeof vv.color === "string" && vv.color ? vv.color : null;
+        const stock = typeof vv.stock === "number" ? vv.stock : Number(vv.stock ?? 0);
+        return { product_id: data.id, size, color, stock };
+      });
+      await supabaseAdmin.from("product_variants").insert(rows);
+    }
+  } catch (err) {
+    console.warn("Failed to persist variants", err);
+  }
+
+  // Fetch persisted variants to include in response
+  const { data: variantRows } = await supabaseAdmin.from("product_variants").select("*").eq("product_id", data.id);
+  const variantRowsTyped = (variantRows ?? []) as VariantRow[];
+  const variants = variantRowsTyped.map(mapVariantRow);
+
+  return NextResponse.json({ ok: true, data: mapProductRow(data, variants) }, { status: 201 });
 }

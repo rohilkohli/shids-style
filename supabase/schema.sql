@@ -22,6 +22,8 @@ create table if not exists public.products (
   stock integer not null default 0,
   rating numeric,
   badge text,
+  bestseller boolean not null default false,
+  sku text,
   tags jsonb default '[]'::jsonb,
   colors jsonb default '[]'::jsonb,
   sizes jsonb default '[]'::jsonb,
@@ -429,6 +431,32 @@ alter table public.profiles
   add column if not exists postal_code text,
   add column if not exists country text;
 
+-- Add bestseller column to products (for existing databases)
+alter table public.products
+  add column if not exists bestseller boolean not null default false;
+
+-- Add SKU column to products (for existing databases)
+alter table public.products
+  add column if not exists sku text;
+
+-- Generate SKUs for existing products that don't have one
+do $$
+declare
+  product_record record;
+  new_sku text;
+begin
+  for product_record in 
+    select id from public.products where sku is null or sku = ''
+  loop
+    -- Generate 8-digit numeric SKU
+    new_sku := lpad(floor(random() * 90000000 + 10000000)::text, 8, '0');
+    
+    update public.products
+    set sku = new_sku
+    where id = product_record.id;
+  end loop;
+end $$;
+
 -- ==========================================
 -- 5. DATABASE FUNCTIONS
 -- ==========================================
@@ -513,3 +541,23 @@ create policy "Admin Manage"
       where (profiles.id = auth.uid()) and (profiles.role = 'admin'::text)
     )
   );
+
+-- ==========================================
+-- 7. DATA MIGRATION: UPDATE SKUS TO 10-DIGIT
+-- ==========================================
+
+-- Function to regenerate SKUs for all products to catch legacy 8-digit ones
+do $$
+declare
+  r record;
+  new_sku text;
+begin
+  for r in select id from public.products loop
+    -- Generate 10-digit numeric SKU
+    new_sku := floor(random() * 9000000000 + 1000000000)::text;
+    
+    update public.products
+    set sku = new_sku
+    where id = r.id;
+  end loop;
+end $$;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { PromptDialog } from "./ConfirmDialog";
 import {
   Bold,
   Italic,
@@ -220,6 +221,10 @@ export default function ProductDescriptionEditor({
   const [activeFormats, setActiveFormats] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [promptState, setPromptState] = useState<{
+    isOpen: boolean;
+    type: "link" | "image";
+  }>({ isOpen: false, type: "link" });
 
   // Set default paragraph separator on mount
   useEffect(() => {
@@ -307,19 +312,26 @@ export default function ProductDescriptionEditor({
 
   // Handle link insertion
   const handleInsertLink = useCallback(() => {
-    const url = window.prompt("Enter URL:");
-    if (url) {
-      applyCommand("createLink", url);
-    }
-  }, [applyCommand]);
+    setPromptState({ isOpen: true, type: "link" });
+  }, []);
 
   // Handle image insertion
   const handleInsertImage = useCallback(() => {
-    const url = window.prompt("Enter Image URL:");
-    if (url) {
-      applyCommand("insertImage", url);
-    }
-  }, [applyCommand]);
+    setPromptState({ isOpen: true, type: "image" });
+  }, []);
+
+  // Handle prompt submission
+  const handlePromptSubmit = useCallback(
+    (url: string) => {
+      if (promptState.type === "link") {
+        applyCommand("createLink", url);
+      } else {
+        applyCommand("insertImage", url);
+      }
+      setPromptState({ isOpen: false, type: "link" });
+    },
+    [applyCommand, promptState.type]
+  );
 
   // Handle clear formatting
   const handleClearFormatting = useCallback(() => {
@@ -648,6 +660,17 @@ export default function ProductDescriptionEditor({
           }
         `}</style>
       </div>
+
+      {/* URL Prompt Dialog */}
+      <PromptDialog
+        isOpen={promptState.isOpen}
+        title={promptState.type === "link" ? "Insert Link" : "Insert Image"}
+        message={promptState.type === "link" ? "Enter the URL for the link:" : "Enter the URL for the image:"}
+        placeholder={promptState.type === "link" ? "https://example.com" : "https://example.com/image.jpg"}
+        inputType="url"
+        onConfirm={handlePromptSubmit}
+        onClose={() => setPromptState({ isOpen: false, type: "link" })}
+      />
     </div>
   );
 }

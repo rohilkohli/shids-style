@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import CartDrawer from "../components/CartDrawer";
 import { getProductPrice, useCommerceStore } from "../lib/store";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, toTitleCase } from "../lib/utils";
 import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function WishlistPage() {
@@ -62,7 +62,7 @@ export default function WishlistPage() {
                     </Link>
                     <div className="mt-4 space-y-2">
                       <Link href={`/products/${product.slug}`} className="text-sm font-semibold text-gray-900 hover:underline">
-                        {product.name}
+                        {toTitleCase(product.name)}
                       </Link>
                       <div className="text-xs text-gray-500">{product.category}</div>
                       <div className="flex items-center gap-2 text-sm">

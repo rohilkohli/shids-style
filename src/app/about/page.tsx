@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
-import CartDrawer from "../components/CartDrawer";
+
 import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
 
 export default function AboutPage() {
-  const [showCart, setShowCart] = useState(false);
-
   return (
     <main className="min-h-screen bg-[color:var(--background)]">
       <section className="py-10 sm:py-14">
@@ -88,13 +85,6 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
-
-      <CartDrawer
-        isOpen={showCart}
-        onOpen={() => setShowCart(true)}
-        onClose={() => setShowCart(false)}
-        hideTrigger
-      />
     </main>
   );
 }

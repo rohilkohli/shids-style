@@ -74,9 +74,7 @@ export default function WhatsAppSticky() {
         aria-label="Chat on WhatsApp"
       >
         <Image src="/whatsapp-icon.svg" alt="WhatsApp" width={44} height={44} className="h-11 w-11" />
-        <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-semibold text-white shadow">
-          1
-        </span>
+        {/* notification badge removed */}
       </button>
     </div>
   );

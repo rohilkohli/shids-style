@@ -2,17 +2,39 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getProductPrice, useCommerceStore } from "../lib/store";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, toTitleCase } from "../lib/utils";
+import { useToast } from "../components/Toast";
+import { CreateAccountPrompt } from "../components/CreateAccountPrompt";
 import type { Order } from "../lib/types";
 
 const ORDER_STORAGE_KEY = "shids-style/last-order";
+const TRACKING_TOKEN_KEY = "shids-style/tracking-token";
 const formatOrderId = (value: string) => (value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-6)}` : value);
 
 export default function OrderConfirmationPage() {
-  const { products } = useCommerceStore();
+  const { products, user } = useCommerceStore();
+  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [trackingTokenCopied, setTrackingTokenCopied] = useState(false);
+  const [trackingToken, setTrackingToken] = useState<string | null>(null);
+  const [showAccountPrompt, setShowAccountPrompt] = useState(false);
+
+  // Load tracking token on mount
+  useEffect(() => {
+    const token = window.localStorage.getItem(TRACKING_TOKEN_KEY);
+    if (token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTrackingToken(token);
+    }
+    
+    // Show account prompt after 3 seconds for guest orders
+    if (!user && token && !window.localStorage.getItem("account-prompt-dismissed")) {
+      const timer = setTimeout(() => setShowAccountPrompt(true), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   const rawOrder = useSyncExternalStore(
     (callback) => {
@@ -173,7 +195,7 @@ export default function OrderConfirmationPage() {
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-900">{product?.name ?? item.productId}</p>
+                        <p className="text-sm font-semibold text-gray-900">{product ? toTitleCase(product.name) : item.productId}</p>
                         <p className="text-xs text-gray-500">
                           Qty: {item.quantity}
                           {item.size ? ` • Size: ${item.size}` : ""}
@@ -216,6 +238,40 @@ export default function OrderConfirmationPage() {
                 We will update the order status once payment is verified.
               </p>
 
+              {/* Guest Tracking Section */}
+              {!user && trackingToken && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                    <span>📧</span> Track Your Order
+                  </h3>
+                  <p className="text-xs text-blue-700">
+                    We&apos;ve sent a tracking link to your email. Bookmark this link to check your order status:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={`${typeof window !== "undefined" ? window.location.origin : ""}/track?token=${trackingToken}`}
+                      className="flex-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-mono truncate"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/track?token=${trackingToken}`);
+                        setTrackingTokenCopied(true);
+                        toast.success("Tracking link copied!");
+                        setTimeout(() => setTrackingTokenCopied(false), 2000);
+                      }}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-700 shrink-0"
+                    >
+                      {trackingTokenCopied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-blue-600">
+                    💡 <strong>Tip:</strong> Create an account to easily track all your orders in one place!
+                  </p>
+                </div>
+              )}
+
               <div className="grid gap-2">
                 <Link
                   href={`/track?orderId=${encodeURIComponent(order.id)}&email=${encodeURIComponent(order.email)}`}
@@ -234,6 +290,18 @@ export default function OrderConfirmationPage() {
           </div>
         </div>
       </section>
+
+      {/* Account Creation Prompt for Guests */}
+      {showAccountPrompt && order && (
+        <CreateAccountPrompt
+          email={order.email}
+          name={customerName}
+          onClose={() => {
+            setShowAccountPrompt(false);
+            window.localStorage.setItem("account-prompt-dismissed", "true");
+          }}
+        />
+      )}
     </main>
   );
 }

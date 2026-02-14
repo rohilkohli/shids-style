@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { verifyTrackingToken } from "@/app/lib/trackingToken";
 import type { Order, OrderStatus } from "@/app/lib/types";
 
 type OrderItemRow = {
@@ -55,17 +56,7 @@ export async function POST(request: NextRequest) {
   const orderId = decodeURIComponent(body.orderId ?? "").trim().toLowerCase();
   const email = decodeURIComponent(body.email ?? "").trim().toLowerCase();
 
-  if (process.env.NODE_ENV !== "production") {
-    let host = "";
-    try {
-      host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host;
-    } catch {
-      host = "";
-    }
-    console.info("[track] supabase", { host });
-  }
 
-  console.info("[track] lookup", { orderId, email });
 
   if (!orderId || !email) {
     return NextResponse.json({ ok: false, error: "Order ID and email are required." }, { status: 400 });
@@ -98,12 +89,38 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true, data: mapOrderRow(data) });
 }
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      ok: false,
-      error: "Use POST with { orderId, email } to track an order.",
-    },
-    { status: 405 }
-  );
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const token = searchParams.get("token");
+
+  if (!token) {
+    return NextResponse.json(
+      { ok: false, error: "Tracking token required" },
+      { status: 400 }
+    );
+  }
+
+  const orderId = await verifyTrackingToken(token);
+  if (!orderId) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid or expired tracking link" },
+      { status: 404 }
+    );
+  }
+
+  // Fetch order details
+  const { data, error } = await supabaseAdmin
+    .from("orders")
+    .select("*, order_items(*)")
+    .eq("id", orderId)
+    .single();
+
+  if (error || !data) {
+    return NextResponse.json(
+      { ok: false, error: "Order not found" },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, data: mapOrderRow(data) });
 }

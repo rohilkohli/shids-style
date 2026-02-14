@@ -197,8 +197,6 @@ a {
   color: #6b5a4d;
 }
 
-/* icon-dark no longer used after dark theme removal */
-
 .spin-once {
   animation: spinOnce 260ms ease-in-out;
 }

@@ -9,9 +9,9 @@ const parseList = (value: unknown): string[] =>
     ? value.map((item) => String(item)).filter(Boolean)
     : typeof value === "string"
       ? value
-          .split(/[,;]+/)
-          .map((item) => item.trim())
-          .filter(Boolean)
+        .split(/[,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
       : [];
 
 type VariantRow = {
@@ -39,6 +39,8 @@ type ProductRow = {
   sizes: string | null;
   highlights: string | null;
   images: string | null;
+  bestseller: boolean | null;
+  sku: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -73,6 +75,8 @@ const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
       : [],
   images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
   variants: variants ?? [],
+  bestseller: row.bestseller ?? false,
+  sku: row.sku ?? undefined,
 });
 
 // [NEW] Helper to check if user is admin
@@ -182,6 +186,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       sizes: body.sizes ? parseList(body.sizes) : current.sizes,
       highlights: body.highlights ? parseList(body.highlights) : current.highlights,
       images: body.images ? parseList(body.images) : current.images,
+      bestseller: typeof body.bestseller === 'boolean' ? body.bestseller : current.bestseller ?? false,
+      sku: body.sku?.trim() ?? current.sku,
       updated_at: updatedAt,
     })
     .eq("id", current.id)
@@ -192,7 +198,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, data: mapProductRow(data) });
+  // If variants provided, replace existing variants for this product
+  try {
+    if (Array.isArray(body.variants)) {
+      // delete existing
+      await supabaseAdmin.from("product_variants").delete().eq("product_id", current.id);
+
+      if (body.variants.length > 0) {
+        const rows = body.variants.map((v: unknown) => {
+          const vv = v as Record<string, unknown>;
+          const size = typeof vv.size === "string" && vv.size ? vv.size : null;
+          const color = typeof vv.color === "string" && vv.color ? vv.color : null;
+          const stock = typeof vv.stock === "number" ? vv.stock : Number(vv.stock ?? 0);
+          return { product_id: current.id, size, color, stock };
+        });
+        await supabaseAdmin.from("product_variants").insert(rows);
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to upsert variants", err);
+  }
+
+  const { data: variantRows } = await supabaseAdmin.from("product_variants").select("*").eq("product_id", current.id);
+  const variantRowsTyped = (variantRows ?? []) as VariantRow[];
+  const variants = variantRowsTyped.map(mapVariantRow);
+
+  return NextResponse.json({ ok: true, data: mapProductRow(data, variants) });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

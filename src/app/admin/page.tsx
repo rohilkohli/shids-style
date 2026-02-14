@@ -6,61 +6,22 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "@/app/lib/store";
 import { formatCurrency, formatDate, formatDateTime, renderDescriptionHtml, slugify } from "@/app/lib/utils";
+import { getOrderStatusColor, isOrderComplete } from "@/app/lib/orderUtils";
 import type { Category, OrderStatus, Product, Order, Customer } from "@/app/lib/types";
 import { supabase } from "@/app/lib/supabase/client";
+import { LOW_STOCK_THRESHOLD } from "@/app/lib/adminConstants";
 import { useToast } from "@/app/components/Toast";
+import { useDialog } from "@/app/components/ConfirmDialog";
 import ProductDescriptionEditor from "@/app/components/ProductDescriptionEditor";
+import { NewsletterView, ContactView, DiscountsView } from "./components";
+import type { NewsletterEntry, ContactMessage, HeroEntry, ProfileSummary, ProductFormState } from "./types";
+
+import { ColorPicker } from "../components/ColorPicker";
+import type { ProductColor, Variant } from "../lib/types";
 
 const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "fulfilled", "shipped", "cancelled"];
 
-type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter" | "contact" | "categories";
-
-type ProductFormState = {
-  id?: string;
-  name: string;
-  description: string;
-  category: string;
-  price: number;
-  originalPrice?: number;
-  discountPercent?: number;
-  stock: number;
-  colors: string;
-  sizes: string;
-  tags: string;
-  highlights: string;
-  images: string;
-  badge?: string;
-};
-
-type HeroEntry = {
-  id: number;
-  position: number;
-  product_id: string;
-  product: Product;
-};
-
-type NewsletterEntry = {
-  id: number;
-  email: string;
-  created_at: string;
-};
-
-type ContactMessage = {
-  id: number;
-  name: string;
-  email: string;
-  message: string;
-  created_at: string;
-};
-
-type ProfileSummary = {
-  id: string;
-  email: string;
-  name?: string | null;
-  phone?: string | null;
-  role?: "admin" | "customer" | null;
-  createdAt?: string | null;
-};
+type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter" | "contact" | "categories" | "reviews";
 
 const parseList = (value: string) =>
   value
@@ -122,6 +83,7 @@ export default function AdminPage() {
     toggleDiscountCodeActive,
   } = useCommerceStore();
   const { toast } = useToast();
+  const dialog = useDialog();
 
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -172,21 +134,42 @@ export default function AdminPage() {
     originalPrice: undefined,
     discountPercent: 0,
     stock: 0,
-    colors: "",
+    colors: [],
     sizes: "",
     tags: "",
     highlights: "",
     images: "",
+    newColorName: "",
+    newColorHex: "#000000",
+    variants: [],
     badge: "",
+    bestseller: false,
+    sku: "",
   });
 
+  // Helper to parse legacy colors (string[]) into objects for the UI
+  const parseColorsForUI = (colors: unknown[]): ProductColor[] => {
+    if (!Array.isArray(colors)) return [];
+    return colors.map((c) => {
+      if (typeof c === "string") return { name: c, hex: "#000000" };
+      // If it's an object with name/hex, coerce safely
+      if (c && typeof c === "object" && "name" in c) {
+        const obj = c as Record<string, unknown>;
+        const name = typeof obj.name === "string" ? obj.name : String(obj.name);
+        const hex = typeof obj.hex === "string" ? obj.hex : "#000000";
+        return { name, hex } as ProductColor;
+      }
+      return { name: String(c), hex: "#000000" };
+    });
+  };
+
   useEffect(() => {
-    setMounted(true);
+    requestAnimationFrame(() => setMounted(true));
   }, []);
 
   useEffect(() => {
     if (!selectedProduct && products.length) {
-      setSelectedProduct(products[0]);
+      requestAnimationFrame(() => setSelectedProduct(products[0]));
     }
   }, [products, selectedProduct]);
 
@@ -300,7 +283,7 @@ export default function AdminPage() {
 
   const totalOrders = orders.length;
 
-  const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= 5), [products]);
+  const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD), [products]);
 
   const adminEmails = useMemo(() => {
     return new Set(
@@ -480,57 +463,58 @@ export default function AdminPage() {
   };
 
   const productSteps = [
-    { title: "Basics", description: "Name, category, description" },
-    { title: "Pricing", description: "Price, discount, stock" },
-    { title: "Options", description: "Colors, sizes, tags, highlights" },
-    { title: "Media", description: "Images and uploads" },
-    { title: "Review", description: "Final check before save" },
+    { title: "Basics", description: "Name, Category, Description" },
+    { title: "Pricing & Stock", description: "Price, Discount, Global Stock" },
+    { title: "Variants", description: "Colors, Sizes, Specific Stock" },
+    { title: "Media", description: "Images" },
+    { title: "Review", description: "Final check" },
   ];
+
   const productPresets: {
     label: string;
     helper: string;
     values: Partial<ProductFormState>;
   }[] = [
-    {
-      label: "Bestseller Tee",
-      helper: "240 GSM cotton, evergreen streetwear",
-      values: {
-        category: "Oversized Tees",
-        price: 699,
-        originalPrice: 999,
-        stock: 80,
-        tags: "oversized,streetwear,unisex,summer",
-        highlights: "240 GSM cotton;Boxy fit;Pre-shrunk;Bio-washed",
-        badge: "Bestseller",
+      {
+        label: "Bestseller Tee",
+        helper: "240 GSM cotton, evergreen streetwear",
+        values: {
+          category: "Oversized Tees",
+          price: 699,
+          originalPrice: 999,
+          stock: 80,
+          tags: "oversized,streetwear,unisex,summer",
+          highlights: "240 GSM cotton;Boxy fit;Pre-shrunk;Bio-washed",
+          badge: "Bestseller",
+        },
       },
-    },
-    {
-      label: "Denim Cargo",
-      helper: "Utility-forward fit with stretch",
-      values: {
-        category: "Cargo & Denims",
-        price: 1499,
-        originalPrice: 1999,
-        stock: 60,
-        tags: "cargo,denim,utility,stretch",
-        highlights: "Stretch denim;Six pockets;YKK zippers;Tailored taper",
-        badge: "New drop",
+      {
+        label: "Denim Cargo",
+        helper: "Utility-forward fit with stretch",
+        values: {
+          category: "Cargo & Denims",
+          price: 1499,
+          originalPrice: 1999,
+          stock: 60,
+          tags: "cargo,denim,utility,stretch",
+          highlights: "Stretch denim;Six pockets;YKK zippers;Tailored taper",
+          badge: "New drop",
+        },
       },
-    },
-    {
-      label: "Dress Drop",
-      helper: "Occasion-ready, light and flowy",
-      values: {
-        category: "Summer Dresses",
-        price: 1299,
-        originalPrice: 1699,
-        stock: 50,
-        tags: "dress,summer,occasion,lightweight",
-        highlights: "Lined;Wrinkle-resistant;Pockets;Breathable weave",
-        badge: "Limited",
+      {
+        label: "Dress Drop",
+        helper: "Occasion-ready, light and flowy",
+        values: {
+          category: "Summer Dresses",
+          price: 1299,
+          originalPrice: 1699,
+          stock: 50,
+          tags: "dress,summer,occasion,lightweight",
+          highlights: "Lined;Wrinkle-resistant;Pockets;Breathable weave",
+          badge: "Limited",
+        },
       },
-    },
-  ];
+    ];
   const lastProductStep = productSteps.length - 1;
 
   const resetForm = () => {
@@ -543,12 +527,18 @@ export default function AdminPage() {
       originalPrice: undefined,
       discountPercent: 0,
       stock: 0,
-      colors: "",
+      colors: [],
       sizes: "",
       tags: "",
       highlights: "",
       images: "",
       badge: "",
+      newColorName: "",
+      newColorHex: "#000000",
+      variants: [],
+      // Keep other fields if needed or default them
+      bestseller: false,
+      sku: "",
     });
     setFormMode("create");
     setSelectedProduct(null);
@@ -558,11 +548,11 @@ export default function AdminPage() {
 
   const goToNextProductStep = () => {
     if (productStep === 0) {
-      if (!productForm.name.trim()) {
+      if (!(productForm.name ?? "").trim()) {
         toast.warning("Product name is required");
         return;
       }
-      if (!productForm.category.trim()) {
+      if (!(productForm.category ?? "").trim()) {
         toast.warning("Category is required");
         return;
       }
@@ -595,11 +585,11 @@ export default function AdminPage() {
     }
 
     if (productStep === 0) {
-      if (!productForm.name.trim()) {
+      if (!(productForm.name ?? "").trim()) {
         toast.warning("Product name is required");
         return;
       }
-      if (!productForm.category.trim()) {
+      if (!(productForm.category ?? "").trim()) {
         toast.warning("Category is required");
         return;
       }
@@ -634,9 +624,9 @@ export default function AdminPage() {
 
   const reviewGaps = (() => {
     const gaps: string[] = [];
-    if (!productForm.name.trim()) gaps.push("Name");
-    if (!productForm.category.trim()) gaps.push("Category");
-    if (!productForm.description.trim()) gaps.push("Description");
+    if (!(productForm.name ?? "").trim()) gaps.push("Name");
+    if (!(productForm.category ?? "").trim()) gaps.push("Category");
+    if (!(productForm.description ?? "").trim()) gaps.push("Description");
     if (!(Number(productForm.price) > 0)) gaps.push("Price");
     if (!(Number(productForm.stock) > 0)) gaps.push("Stock");
     if (parseImages(productForm.images).length === 0) gaps.push("Images");
@@ -646,7 +636,7 @@ export default function AdminPage() {
   const editChanges = (() => {
     if (formMode !== "edit" || !editBaseline) return [];
     const changes: { label: string; from: string; to: string }[] = [];
-    const currentColors = parseList(productForm.colors);
+    const currentColors = productForm.colors.map(c => c.name).join(", ");
     const currentSizes = parseList(productForm.sizes);
     const currentTags = parseList(productForm.tags);
     const currentHighlights = parseList(productForm.highlights);
@@ -673,7 +663,19 @@ export default function AdminPage() {
     pushChange("Discount %", editBaseline.discountPercent ?? 0, productForm.discountPercent ?? 0);
     pushChange("Stock", editBaseline.stock, Number(productForm.stock) || 0);
     pushChange("Badge", editBaseline.badge ?? "—", productForm.badge ?? "—");
-    pushChange("Colors", editBaseline.colors ?? [], currentColors);
+
+    // Compare baseline colors (string[] or ProductColor[]) vs current (ProductColor[])
+    const baselineColors = (editBaseline.colors || [])
+      .map((c: unknown) => {
+        if (typeof c === 'string') return c;
+        if (c && typeof c === 'object' && 'name' in c) return String((c as Record<string, unknown>).name);
+        return String(c);
+      })
+      .join(", ");
+
+    if (baselineColors !== currentColors) {
+      pushChange("Colors", baselineColors, currentColors);
+    }
     pushChange("Sizes", editBaseline.sizes ?? [], currentSizes);
     pushChange("Tags", editBaseline.tags ?? [], currentTags);
     pushChange("Highlights", editBaseline.highlights ?? [], currentHighlights);
@@ -688,6 +690,8 @@ export default function AdminPage() {
     setProductStep(0);
   };
 
+  
+
   const populateForm = (product: Product) => {
     setProductForm({
       id: product.id,
@@ -698,21 +702,27 @@ export default function AdminPage() {
       originalPrice: product.originalPrice,
       discountPercent: product.discountPercent ?? 0,
       stock: product.stock,
-      colors: product.colors.join(", "),
+      // Ensure colors are ProductColor[]
+      colors: parseColorsForUI(product.colors),
       sizes: product.sizes.join(", "),
       tags: product.tags.join(", "),
       highlights: product.highlights.join("; ") || product.highlights.join(", "),
       images: product.images.join(", "),
       badge: product.badge ?? "",
+      bestseller: product.bestseller ?? false,
+      sku: product.sku ?? "",
+      variants: (product.variants ?? []).map(v => ({ id: v.id, productId: v.productId, color: v.color, size: v.size, stock: v.stock })),
+      newColorName: "",
+      newColorHex: "#000000",
     });
   };
 
   const handleCreateOrUpdate = async () => {
-    const name = productForm.name.trim();
-    const category = productForm.category.trim();
-    const description = renderDescriptionHtml(productForm.description);
+    const name = (productForm.name ?? "").trim();
+    const category = (productForm.category ?? "").trim();
+    const description = renderDescriptionHtml(productForm.description ?? "");
     const price = Number(productForm.price) || 0;
-    const colors = parseList(productForm.colors);
+    const colors = productForm.colors; // Already ProductColor[]
     const sizes = parseList(productForm.sizes);
     const tags = parseList(productForm.tags);
     const highlights = parseList(productForm.highlights);
@@ -740,6 +750,7 @@ export default function AdminPage() {
     }
 
     if (formMode === "create") {
+      type CreatePayloadType = Omit<Product, "id" | "slug"> & { id?: string; slug?: string; variants?: Partial<Variant>[] };
       const payload: Omit<Product, "id" | "slug"> & { id?: string; slug?: string } = {
         id: productForm.id || slugify(productForm.name || "new-product"),
         name,
@@ -757,9 +768,19 @@ export default function AdminPage() {
         images,
         badge: productForm.badge?.trim() || undefined,
         rating: 4.5,
+        // [NEW] Support for admin bestseller flag and SKU
+        bestseller: productForm.bestseller ?? false,
+        sku: productForm.sku?.trim() || undefined,
       };
       try {
-        const created = await createProduct(payload);
+        // include variants for creation if present
+        const createPayload = {
+          ...payload,
+          ...(productForm.variants && productForm.variants.length > 0
+            ? { variants: productForm.variants.map((v) => ({ color: v.color, size: v.size, stock: Number(v.stock || 0) })) }
+            : {}),
+        };
+        const created = await createProduct(createPayload as CreatePayloadType);
         setSelectedProduct(created ?? null);
         setFlash("Product created");
       } catch (error) {
@@ -780,9 +801,17 @@ export default function AdminPage() {
         highlights,
         images,
         badge: productForm.badge?.trim() || undefined,
+        bestseller: productForm.bestseller ?? false,
+        // Do NOT allow updating SKU after creation; keep original SKU unchanged on edits
+      };
+      const updatesWithVariants = {
+        ...updates,
+        ...(productForm.variants
+          ? { variants: productForm.variants.map((v) => ({ color: v.color, size: v.size, stock: Number(v.stock || 0) })) }
+          : {}),
       };
       try {
-        const updated = await updateProduct(selectedProduct.id, updates);
+        const updated = await updateProduct(selectedProduct.id, updatesWithVariants as Partial<Product> & { variants?: Partial<Variant>[] });
         setSelectedProduct(updated ?? selectedProduct);
         setEditBaseline(updated ?? selectedProduct);
         setFlash("Product updated");
@@ -871,7 +900,12 @@ export default function AdminPage() {
   };
 
   const handleDelete = async (product: Product) => {
-    const ok = window.confirm(`Delete "${product.name}"? This cannot be undone.`);
+    const ok = await dialog.confirm({
+      title: "Delete Product",
+      message: `Delete "${product.name}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
     if (!ok) return;
     try {
       await deleteProduct(product.id);
@@ -914,7 +948,13 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (categoryId: number) => {
-    if (!confirm("Delete this category?")) return;
+    const ok = await dialog.confirm({
+      title: "Delete Category",
+      message: "Delete this category? Products in this category will need to be reassigned.",
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const response = await fetch(`/api/categories?id=${categoryId}`, { method: "DELETE" });
       const json = await response.json();
@@ -1027,9 +1067,9 @@ export default function AdminPage() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col transform transition lg:static lg:translate-x-0 lg:w-64 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col overflow-y-auto max-h-screen transform transition lg:static lg:translate-x-0 lg:w-64 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        style={{ WebkitOverflowScrolling: "touch" }}
       >
         <div className="p-6">
           <Link href="/" className="flex items-center gap-2">
@@ -1040,11 +1080,10 @@ export default function AdminPage() {
         <nav className="flex-1 px-3 py-4 space-y-1">
           <button
             onClick={() => setCurrentView("dashboard")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "dashboard"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "dashboard"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -1054,11 +1093,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("products")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "products"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "products"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -1068,11 +1106,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("categories")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "categories"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "categories"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -1082,11 +1119,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("orders")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "orders"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "orders"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -1096,11 +1132,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("customers")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "customers"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "customers"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1110,11 +1145,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("discounts")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "discounts"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "discounts"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1124,11 +1158,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("hero")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "hero"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "hero"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -1138,11 +1171,10 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("newsletter")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "newsletter"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "newsletter"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v12H4z" />
@@ -1153,17 +1185,29 @@ export default function AdminPage() {
 
           <button
             onClick={() => setCurrentView("contact")}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              currentView === "contact"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "contact"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16v12H4z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m22 8-10 6L2 8" />
             </svg>
             Contact Messages
+          </button>
+
+          <button
+            onClick={() => setCurrentView("reviews")}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "reviews"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+            Reviews
           </button>
 
           <Link
@@ -1178,15 +1222,15 @@ export default function AdminPage() {
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">
-                  {user?.name?.slice(0, 2).toUpperCase() ?? "AD"}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white">{user?.name ?? "Admin"}</p>
-                  <p className="text-xs text-slate-400">{user?.email ?? "Store Manager"}</p>
-                </div>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+              {user?.name?.slice(0, 2).toUpperCase() ?? "AD"}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">{user?.name ?? "Admin"}</p>
+              <p className="text-xs text-slate-400">{user?.email ?? "Store Manager"}</p>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -1455,7 +1499,7 @@ export default function AdminPage() {
                               </div>
                               <div>
                                 <p className="text-sm font-medium text-gray-900">{product.name}</p>
-                                <p className="text-xs text-gray-500">SKU: {product.id}</p>
+                                <p className="text-xs text-gray-500">SKU: {product.sku || product.id}</p>
                               </div>
                             </div>
                           </td>
@@ -1465,7 +1509,7 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {product.stock > 5 ? (
+                            {product.stock > LOW_STOCK_THRESHOLD ? (
                               <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
                                 Active
                               </span>
@@ -1651,83 +1695,78 @@ export default function AdminPage() {
                       const draftStatus = orderStatusDrafts[order.id] ?? order.status;
                       const statusDirty = draftStatus !== order.status;
                       return (
-                      <tr key={order.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => openOrderDetail(order)}
-                            className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
-                          >
-                            #{order.id}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(order.createdAt)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{order.email}</p>
-                            <p className="text-xs text-gray-500">{order.address}</p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {order.status === "paid" || order.status === "fulfilled" || order.status === "shipped" ? (
-                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded flex items-center gap-1 w-fit">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
+                        <tr key={order.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => openOrderDetail(order)}
+                              className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
+                            >
+                              #{order.id}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDate(order.createdAt)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{order.email}</p>
+                              <p className="text-xs text-gray-500">{order.address}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1 w-fit ${getOrderStatusColor(order.status)}`}>
+                              {isOrderComplete(order.status) && (
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              )}
                               {order.status}
                             </span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">
-                              {order.status}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          {formatCurrency(order.total)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={draftStatus}
-                            onChange={(e) =>
-                              setOrderStatusDrafts((prev) => ({
-                                ...prev,
-                                [order.id]: e.target.value as OrderStatus,
-                              }))
-                            }
-                            className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
-                          >
-                            {statuses.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await handleOrderStatusUpdate(order.id, draftStatus);
-                                setOrderStatusDrafts((prev) => {
-                                  const next = { ...prev };
-                                  delete next[order.id];
-                                  return next;
-                                });
-                              } catch (error) {
-                                setFlash((error as Error).message);
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {formatCurrency(order.total)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <select
+                              value={draftStatus}
+                              onChange={(e) =>
+                                setOrderStatusDrafts((prev) => ({
+                                  ...prev,
+                                  [order.id]: e.target.value as OrderStatus,
+                                }))
                               }
-                            }}
-                            disabled={!statusDirty}
-                            className={`ml-2 text-xs font-medium ${
-                              statusDirty
+                              className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                            >
+                              {statuses.map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await handleOrderStatusUpdate(order.id, draftStatus);
+                                  setOrderStatusDrafts((prev) => {
+                                    const next = { ...prev };
+                                    delete next[order.id];
+                                    return next;
+                                  });
+                                } catch (error) {
+                                  setFlash((error as Error).message);
+                                }
+                              }}
+                              disabled={!statusDirty}
+                              className={`ml-2 text-xs font-medium ${statusDirty
                                 ? "text-indigo-600 hover:text-indigo-900"
                                 : "text-gray-400 cursor-not-allowed"
-                            }`}
-                          >
-                            Update
-                          </button>
-                        </td>
-                      </tr>
-                    );
+                                }`}
+                            >
+                              Update
+                            </button>
+                          </td>
+                        </tr>
+                      );
                     })}
                   </tbody>
                 </table>
@@ -1843,15 +1882,9 @@ export default function AdminPage() {
                             {order.email}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {order.status === "paid" || order.status === "fulfilled" || order.status === "shipped" ? (
-                              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
-                                {order.status}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">
-                                {order.status}
-                              </span>
-                            )}
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${getOrderStatusColor(order.status)}`}>
+                              {order.status}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                             {formatCurrency(order.total)}
@@ -1865,119 +1898,23 @@ export default function AdminPage() {
           )}
 
           {currentView === "discounts" && (
-            <>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Discount Codes</h1>
-                  <p className="text-sm text-gray-500 mt-1">{discountCodes.length} active codes</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setDiscountForm({
-                      code: "",
-                      description: "",
-                      type: "percentage",
-                      value: 0,
-                      maxUses: undefined,
-                      expiryDate: "",
-                    });
-                    setShowDiscountPanel(true);
-                  }}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create Code
-                </button>
-              </div>
-
-              {/* Discount Codes Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-                <table className="w-full min-w-[760px]">
-                  <thead className="bg-slate-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {discountCodes.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
-                          No discount codes created yet.
-                        </td>
-                      </tr>
-                    )}
-                    {discountCodes.map((code) => (
-                      <tr key={code.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-3 py-1 text-sm font-bold text-indigo-700 bg-indigo-50 rounded-full">{code.code}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-900">{code.description || "-"}</p>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          {code.type === "percentage" ? `${code.value}%` : formatCurrency(code.value)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {code.maxUses ? `${code.usedCount}/${code.maxUses}` : `${code.usedCount} uses`}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={async () => {
-                              try {
-                                await toggleDiscountCodeActive(code.id);
-                              } catch (error) {
-                                setFlash((error as Error).message);
-                              }
-                            }}
-                            className={`px-2 py-1 text-xs font-medium rounded ${
-                              code.isActive
-                                ? "bg-green-100 text-green-800 hover:bg-green-200"
-                                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                            }`}
-                          >
-                            {code.isActive ? "Active" : "Inactive"}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {code.expiryDate ? formatDate(code.expiryDate) : "No expiry"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={async () => {
-                              if (confirm(`Delete code ${code.code}?`)) {
-                                try {
-                                  await deleteDiscountCode(code.id);
-                                  setFlash(`Code ${code.code} deleted`);
-                                  setTimeout(() => setFlash(null), 2000);
-                                } catch (error) {
-                                  setFlash((error as Error).message);
-                                }
-                              }
-                            }}
-                            className="text-red-600 hover:text-red-900 font-medium"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {discountCodes.length === 0 && (
-                <div className="mt-6 text-center p-8 bg-slate-50 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600">No discount codes yet. Create your first code!</p>
-                </div>
-              )}
-            </>
+            <DiscountsView
+              discountCodes={discountCodes}
+              onCreateClick={() => {
+                setDiscountForm({
+                  code: "",
+                  description: "",
+                  type: "percentage",
+                  value: 0,
+                  maxUses: undefined,
+                  expiryDate: "",
+                });
+                setShowDiscountPanel(true);
+              }}
+              onToggleActive={toggleDiscountCodeActive}
+              onDelete={deleteDiscountCode}
+              onSetFlash={setFlash}
+            />
           )}
 
           {currentView === "hero" && (
@@ -1999,180 +1936,114 @@ export default function AdminPage() {
                   <span className="text-xs text-gray-500">{heroItems.length} items</span>
                 </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <select
-                      className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                      value={heroProductId}
-                      onChange={(event) => setHeroProductId(event.target.value)}
-                    >
-                      <option value="">Select a product</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                      value={heroPosition}
-                      onChange={(event) => setHeroPosition(Number(event.target.value))}
-                      placeholder="Position"
-                    />
-                    <button
-                      className="sm:col-span-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-                      onClick={addHeroProduct}
-                    >
-                      Add / Update Hero
-                    </button>
-                  </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <select
+                    className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    value={heroProductId}
+                    onChange={(event) => setHeroProductId(event.target.value)}
+                  >
+                    <option value="">Select a product</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    value={heroPosition}
+                    onChange={(event) => setHeroPosition(Number(event.target.value))}
+                    placeholder="Position"
+                  />
+                  <button
+                    className="sm:col-span-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                    onClick={addHeroProduct}
+                  >
+                    Add / Update Hero
+                  </button>
+                </div>
 
-                  <div className="mt-5 overflow-x-auto rounded-lg border border-gray-100">
-                    <table className="w-full min-w-[520px] text-sm">
-                      <thead className="bg-slate-50">
+                <div className="mt-5 overflow-x-auto rounded-lg border border-gray-100">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Product
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Position
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {heroItems.length === 0 && (
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                            Product
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                            Position
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                            Actions
-                          </th>
+                          <td colSpan={3} className="px-4 py-4 text-center text-sm text-gray-500">
+                            No hero products selected.
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {heroItems.length === 0 && (
-                          <tr>
-                            <td colSpan={3} className="px-4 py-4 text-center text-sm text-gray-500">
-                              No hero products selected.
-                            </td>
-                          </tr>
-                        )}
-                        {heroItems.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-gray-900">{item.product?.name}</p>
-                            </td>
-                            <td className="px-4 py-3 text-gray-600">{item.position}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                className="text-xs font-semibold text-red-600 hover:text-red-900"
-                                onClick={() => removeHeroProduct(item.id)}
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      )}
+                      {heroItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-900">{item.product?.name}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{item.position}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              className="text-xs font-semibold text-red-600 hover:text-red-900"
+                              onClick={() => removeHeroProduct(item.id)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </>
           )}
 
           {currentView === "newsletter" && (
-            <>
-              <div className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">Newsletter Emails</h1>
-                <p className="text-sm text-gray-500 mt-1">View all newsletter signups</p>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900">Newsletter Emails</h2>
-                  <span className="text-xs text-gray-500">{newsletterEmails.length} total</span>
-                </div>
-
-                <div className="mt-4 max-h-[520px] overflow-x-auto overflow-y-auto border border-gray-100 rounded-lg">
-                  <table className="w-full min-w-[520px] text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                          Email
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                          Date
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {newsletterEmails.length === 0 && (
-                        <tr>
-                          <td colSpan={2} className="px-4 py-4 text-center text-sm text-gray-500">
-                            No emails collected yet.
-                          </td>
-                        </tr>
-                      )}
-                      {newsletterEmails.map((entry) => (
-                        <tr key={entry.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{entry.email}</td>
-                          <td className="px-4 py-3 text-gray-500">{formatDateTime(entry.created_at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
+            <NewsletterView newsletterEmails={newsletterEmails} />
           )}
 
           {currentView === "contact" && (
-            <>
-              <div className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">Contact Messages</h1>
-                <p className="text-sm text-gray-500 mt-1">Customer inquiries from the contact form</p>
+            <ContactView contactMessages={contactMessages} />
+          )}
+
+          {currentView === "reviews" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">Product Reviews</h2>
+                <p className="text-sm text-gray-500">Manage customer reviews and ratings</p>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900">Messages</h2>
-                  <span className="text-xs text-gray-500">{contactMessages.length} total</span>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="p-4 border-b border-gray-100">
+                  <p className="text-sm text-gray-600">
+                    Reviews are collected from authenticated users on product pages. This section shows all submitted reviews.
+                  </p>
                 </div>
 
-                <div className="mt-4 max-h-[520px] overflow-x-auto overflow-y-auto border border-gray-100 rounded-lg">
-                  <table className="w-full min-w-[640px] text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                          Name
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                          Email
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                          Message
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                          Date
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {contactMessages.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-500">
-                            No contact messages yet.
-                          </td>
-                        </tr>
-                      )}
-                      {contactMessages.map((entry) => (
-                        <tr key={entry.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{entry.name}</td>
-                          <td className="px-4 py-3 text-gray-700">{entry.email}</td>
-                          <td className="px-4 py-3 text-gray-600 max-w-[360px]">
-                            <span className="line-clamp-2">{entry.message}</span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-500">{formatDateTime(entry.created_at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="divide-y divide-gray-100">
+                  {/* Placeholder for when reviews are wired to backend */}
+                  <div className="p-8 text-center text-gray-500">
+                    <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                    <p className="font-medium">No reviews yet</p>
+                    <p className="text-sm mt-1">Reviews will appear here once customers start rating products.</p>
+                  </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </main>
@@ -2205,13 +2076,12 @@ export default function AdminPage() {
                     key={step.title}
                     type="button"
                     onClick={() => goToProductStep(index)}
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      index === productStep
-                        ? "border-indigo-200 bg-indigo-50"
-                        : index < productStep
+                    className={`rounded-xl border px-4 py-3 text-left transition ${index === productStep
+                      ? "border-indigo-200 bg-indigo-50"
+                      : index < productStep
                         ? "border-emerald-200 bg-emerald-50"
                         : "border-gray-200 bg-white"
-                    }`}
+                      }`}
                   >
                     <p className="text-[11px] uppercase tracking-[0.3em] text-gray-500">Step {index + 1}</p>
                     <p className="mt-1 text-sm font-semibold text-gray-900">{step.title}</p>
@@ -2323,7 +2193,7 @@ export default function AdminPage() {
                         Description
                       </label>
                       <ProductDescriptionEditor
-                        value={productForm.description}
+                        value={productForm.description ?? ""}
                         onChange={(html) => {
                           const sanitized = renderDescriptionHtml(html);
                           setProductForm((prev) => ({ ...prev, description: sanitized }));
@@ -2384,40 +2254,213 @@ export default function AdminPage() {
               )}
 
               {productStep === 2 && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Colors (comma/semicolon)
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.colors}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, colors: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium text-gray-700">
-                    Sizes (comma/semicolon)
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.sizes}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, sizes: event.target.value }))}
-                    />
-                  </label>
+                <div className="space-y-8">
+                  {/* COLORS SECTION */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">Product Colors</label>
+                      <span className="text-xs text-gray-500">Define available colors with exact hex codes.</span>
+                    </div>
 
-                  <label className="text-sm font-medium text-gray-700">
-                    Tags (comma/semicolon)
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.tags}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, tags: event.target.value }))}
-                    />
-                  </label>
-                  <label className="text-sm font-medium text-gray-700">
-                    Highlights (comma/semicolon)
-                    <input
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      value={productForm.highlights}
-                      onChange={(event) => setProductForm((prev) => ({ ...prev, highlights: event.target.value }))}
-                    />
-                  </label>
+                    <div className="flex flex-wrap gap-3">
+                      {productForm.colors?.map((color, idx) => (
+                        <div key={idx} className="flex items-center gap-2 rounded-lg border border-gray-200 p-2 bg-white shadow-sm">
+                          <div
+                            className="h-6 w-6 rounded-full border border-gray-200"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <div className="text-xs">
+                            <p className="font-medium text-gray-900">{color.name}</p>
+                            <p className="text-gray-500">{color.hex}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProductForm(prev => ({
+                                ...prev,
+                                colors: prev.colors?.filter((_, i) => i !== idx) || []
+                              }));
+                            }}
+                            className="ml-2 text-gray-400 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-end gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Color Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Midnight Blue"
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                          value={productForm.newColorName || ""}
+                          onChange={e => setProductForm(prev => ({ ...prev, newColorName: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Color Value</label>
+                        <ColorPicker
+                          color={productForm.newColorHex || "#000000"}
+                          onChange={hex => setProductForm(prev => ({ ...prev, newColorHex: hex }))}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!productForm.newColorName}
+                        onClick={() => {
+                          if (!productForm.newColorName) return;
+                          setProductForm(prev => ({
+                            ...prev,
+                            colors: [...(prev.colors || []), { name: prev.newColorName!, hex: prev.newColorHex || "#000000" }],
+                            newColorName: "",
+                            newColorHex: "#000000"
+                          }));
+                        }}
+                        className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add Color
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SIZES SECTION */}
+                  <div className="space-y-4">
+                    <label className="text-sm font-medium text-gray-700">
+                      Sizes (comma-separated)
+                      <input
+                        className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        value={productForm.sizes || ""} // Handle string input
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, sizes: event.target.value }))}
+                        placeholder="S, M, L, XL"
+                      />
+                    </label>
+                  </div>
+
+                  {/* VARIANTS GENERATOR */}
+                  <div className="space-y-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900">Variants & Stock</h3>
+                        <p className="text-xs text-gray-500">Manage stock info for specific combinations.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Generate variants logic
+                          const sizeList = typeof productForm.sizes === 'string'
+                            ? productForm.sizes.split(/[,\s]+/).filter(Boolean)
+                            : [];
+                          const colorList = productForm.colors || [];
+
+                          const newVariants: Variant[] = [];
+
+                          // If no options, do nothing or user Global Stock
+                          if (sizeList.length === 0 && colorList.length === 0) return;
+
+                          // Cross product
+                          if (sizeList.length > 0 && colorList.length > 0) {
+                            colorList.forEach(c => {
+                              sizeList.forEach(s => {
+                                newVariants.push({
+                                  id: Math.random(), // Temp ID
+                                  productId: productForm.id || "new",
+                                  color: c.name,
+                                  size: s,
+                                  stock: productForm.stock || 0
+                                });
+                              });
+                            });
+                          } else if (sizeList.length > 0) {
+                            sizeList.forEach(s => {
+                              newVariants.push({
+                                id: Math.random(),
+                                productId: productForm.id || "new",
+                                color: "",
+                                size: s,
+                                stock: productForm.stock || 0
+                              });
+                            });
+                          } else if (colorList.length > 0) {
+                            colorList.forEach(c => {
+                              newVariants.push({
+                                id: Math.random(),
+                                productId: productForm.id || "new",
+                                color: c.name,
+                                size: "",
+                                stock: productForm.stock || 0
+                              });
+                            });
+                          }
+
+                          setProductForm(prev => ({ ...prev, variants: newVariants }));
+                        }}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                      >
+                        Generate / Refresh Variants
+                      </button>
+                    </div>
+
+                    {productForm.variants && productForm.variants.length > 0 ? (
+                      <div className="rounded-xl border border-gray-200 overflow-hidden">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                              <th className="px-4 py-3">Variant</th>
+                              <th className="px-4 py-3 w-32">Stock</th>
+                              <th className="px-4 py-3 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {productForm.variants.map((variant, idx) => (
+                              <tr key={idx} className="bg-white hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium text-gray-900">
+                                  {variant.color && <span className="mr-2">{variant.color}</span>}
+                                  {variant.size && <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{variant.size}</span>}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                                    value={variant.stock}
+                                    onChange={(e) => {
+                                      const newStock = Number(e.target.value);
+                                      setProductForm(prev => {
+                                        const updated = [...(prev.variants || [])];
+                                        updated[idx] = { ...updated[idx], stock: newStock };
+                                        return { ...prev, variants: updated };
+                                      });
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setProductForm(prev => ({
+                                        ...prev,
+                                        variants: prev.variants?.filter((_, i) => i !== idx)
+                                      }));
+                                    }}
+                                    className="text-gray-400 hover:text-red-600"
+                                  >
+                                                ×
+                                              </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center p-6 border-2 border-dashed border-gray-100 rounded-xl text-xs text-gray-400">
+                                    Add colors/sizes and click &quot;Generate&quot; to manage generic combinations.
+                      </div>
+                    )}
+                  </div>
 
                   <label className="text-sm font-medium text-gray-700 md:col-span-2">
                     Badge (optional)
@@ -2427,6 +2470,29 @@ export default function AdminPage() {
                       onChange={(event) => setProductForm((prev) => ({ ...prev, badge: event.target.value }))}
                     />
                   </label>
+
+                  <div className="flex items-center gap-4 md:col-span-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!productForm.bestseller}
+                        onChange={e => setProductForm(prev => ({ ...prev, bestseller: e.target.checked }))}
+                        className="rounded border-gray-300"
+                      />
+                      Mark as Bestseller
+                    </label>
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      SKU
+                      <input
+                        className="w-32 rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none disabled:opacity-60"
+                        value={productForm.sku ?? ''}
+                        onChange={e => setProductForm(prev => ({ ...prev, sku: e.target.value }))}
+                        placeholder="Auto (10-digit)"
+                        disabled={formMode === 'edit'}
+                        title={formMode === 'edit' ? 'SKU is immutable after creation' : undefined}
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
 
@@ -2449,11 +2515,10 @@ export default function AdminPage() {
                   <label className="text-sm font-medium text-gray-700">
                     Upload Images
                     <div
-                      className={`mt-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center text-sm transition ${
-                        dragActive
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-gray-200 bg-white hover:border-indigo-300"
-                      } ${uploadingImages ? "opacity-70 cursor-not-allowed" : ""}`}
+                      className={`mt-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center text-sm transition ${dragActive
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-gray-200 bg-white hover:border-indigo-300"
+                        } ${uploadingImages ? "opacity-70 cursor-not-allowed" : ""}`}
                       aria-busy={uploadingImages}
                       onDragOver={(event) => {
                         event.preventDefault();
@@ -2652,11 +2717,10 @@ export default function AdminPage() {
                     type="button"
                     onClick={goToPrevProductStep}
                     disabled={productStep === 0}
-                    className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-                      productStep === 0
-                        ? "border-gray-200 text-gray-400"
-                        : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition ${productStep === 0
+                      ? "border-gray-200 text-gray-400"
+                      : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                      }`}
                   >
                     Back
                   </button>
@@ -2720,7 +2784,13 @@ export default function AdminPage() {
                 <button
                   className="rounded-full border border-red-200 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50"
                   onClick={async () => {
-                    if (!confirm(`Delete order ${selectedOrder.id}? This cannot be undone.`)) return;
+                    const ok = await dialog.confirm({
+                      title: "Delete Order",
+                      message: `Delete order #${selectedOrder.id}? This cannot be undone.`,
+                      confirmLabel: "Delete Order",
+                      variant: "danger",
+                    });
+                    if (!ok) return;
                     try {
                       await deleteOrder(selectedOrder.id);
                       setShowOrderDetail(false);
@@ -2762,13 +2832,10 @@ export default function AdminPage() {
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Current Status</p>
                   <p className="text-sm font-medium text-gray-900 mt-1">
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${
-                      selectedOrder.status === "shipped" || selectedOrder.status === "fulfilled"
-                        ? "bg-green-100 text-green-800"
-                        : selectedOrder.status === "paid" || selectedOrder.status === "processing" || selectedOrder.status === "packed"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-amber-100 text-amber-800"
-                    }`}>
+                    <span className={`px-2 py-1 text-xs font-medium rounded ${selectedOrder.status === "paid" || selectedOrder.status === "processing" || selectedOrder.status === "packed"
+                      ? "bg-blue-100 text-blue-800"
+                      : getOrderStatusColor(selectedOrder.status)
+                      }`}>
                       {selectedOrder.status}
                     </span>
                   </p>
@@ -2830,11 +2897,10 @@ export default function AdminPage() {
               <div className="border-t border-gray-200 pt-6">
                 <div className="flex items-center justify-between gap-3">
                   <h4 className="text-sm font-bold text-gray-900">Payment Verification</h4>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    selectedOrder.paymentVerified
-                      ? "bg-green-100 text-green-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${selectedOrder.paymentVerified
+                    ? "bg-green-100 text-green-700"
+                    : "bg-amber-100 text-amber-700"
+                    }`}>
                     {selectedOrder.paymentVerified ? "Verified" : "Pending"}
                   </span>
                 </div>
@@ -2868,7 +2934,7 @@ export default function AdminPage() {
               {/* Order Status Management */}
               <div className="border-t border-gray-200 pt-6">
                 <h4 className="text-sm font-bold text-gray-900 mb-4">Order Status Timeline</h4>
-                
+
                 {/* Status Timeline */}
                 <div className="mb-6 bg-slate-50 rounded-lg p-4">
                   <div className="relative">
@@ -2876,11 +2942,10 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2 mb-4">
                       {/* Pending */}
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          ["pending", "processing", "paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-200 text-gray-500"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${["pending", "processing", "paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                          }`}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -2889,19 +2954,17 @@ export default function AdminPage() {
                       </div>
 
                       {/* Connector 1 */}
-                      <div className={`h-1 flex-1 ${
-                        ["processing", "paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                          ? "bg-blue-600"
-                          : "bg-gray-300"
-                      }`} />
+                      <div className={`h-1 flex-1 ${["processing", "paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                        ? "bg-blue-600"
+                        : "bg-gray-300"
+                        }`} />
 
                       {/* Processing */}
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          ["processing", "paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-200 text-gray-500"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${["processing", "paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                          }`}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                           </svg>
@@ -2910,19 +2973,17 @@ export default function AdminPage() {
                       </div>
 
                       {/* Connector 2 */}
-                      <div className={`h-1 flex-1 ${
-                        ["paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                          ? "bg-green-600"
-                          : "bg-gray-300"
-                      }`} />
+                      <div className={`h-1 flex-1 ${["paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                        ? "bg-green-600"
+                        : "bg-gray-300"
+                        }`} />
 
                       {/* Paid */}
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          ["paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                            ? "bg-green-600 text-white"
-                            : "bg-gray-200 text-gray-500"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${["paid", "packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                          }`}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -2931,19 +2992,17 @@ export default function AdminPage() {
                       </div>
 
                       {/* Connector 3 */}
-                      <div className={`h-1 flex-1 ${
-                        ["packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                          ? "bg-purple-600"
-                          : "bg-gray-300"
-                      }`} />
+                      <div className={`h-1 flex-1 ${["packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                        ? "bg-purple-600"
+                        : "bg-gray-300"
+                        }`} />
 
                       {/* Packed */}
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          ["packed", "fulfilled", "shipped"].includes(selectedOrder.status)
-                            ? "bg-purple-600 text-white"
-                            : "bg-gray-200 text-gray-500"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${["packed", "fulfilled", "shipped"].includes(selectedOrder.status)
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                          }`}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10l8-4" />
                           </svg>
@@ -2952,19 +3011,17 @@ export default function AdminPage() {
                       </div>
 
                       {/* Connector 4 */}
-                      <div className={`h-1 flex-1 ${
-                        ["fulfilled", "shipped"].includes(selectedOrder.status)
-                          ? "bg-amber-600"
-                          : "bg-gray-300"
-                      }`} />
+                      <div className={`h-1 flex-1 ${["fulfilled", "shipped"].includes(selectedOrder.status)
+                        ? "bg-amber-600"
+                        : "bg-gray-300"
+                        }`} />
 
                       {/* Shipped */}
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          ["fulfilled", "shipped"].includes(selectedOrder.status)
-                            ? "bg-amber-600 text-white"
-                            : "bg-gray-200 text-gray-500"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${["fulfilled", "shipped"].includes(selectedOrder.status)
+                          ? "bg-amber-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                          }`}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6m0 0L7 12m6-6l6 6" />
                           </svg>
@@ -2973,19 +3030,17 @@ export default function AdminPage() {
                       </div>
 
                       {/* Connector 5 */}
-                      <div className={`h-1 flex-1 ${
-                        selectedOrder.status === "shipped"
-                          ? "bg-green-600"
-                          : "bg-gray-300"
-                      }`} />
+                      <div className={`h-1 flex-1 ${selectedOrder.status === "shipped"
+                        ? "bg-green-600"
+                        : "bg-gray-300"
+                        }`} />
 
                       {/* Delivered */}
                       <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          selectedOrder.status === "shipped"
-                            ? "bg-green-600 text-white"
-                            : "bg-gray-200 text-gray-500"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedOrder.status === "shipped"
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                          }`}>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -3117,8 +3172,14 @@ export default function AdminPage() {
                 )}
 
                 <button
-                  onClick={() => {
-                    if (confirm("Cancel this order?")) {
+                  onClick={async () => {
+                    const ok = await dialog.confirm({
+                      title: "Cancel Order",
+                      message: "Are you sure you want to cancel this order? The customer will be notified.",
+                      confirmLabel: "Cancel Order",
+                      variant: "warning",
+                    });
+                    if (ok) {
                       handleOrderStatusUpdate(selectedOrder.id, "cancelled");
                       setSelectedOrder({ ...selectedOrder, status: "cancelled" });
                     }
@@ -3153,7 +3214,13 @@ export default function AdminPage() {
                 <button
                   className="rounded-full border border-red-200 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50"
                   onClick={async () => {
-                    if (!confirm(`Delete customer ${selectedCustomer.email} and all their orders? This cannot be undone.`)) return;
+                    const ok = await dialog.confirm({
+                      title: "Delete Customer",
+                      message: `Delete customer ${selectedCustomer.email} and all their orders? This cannot be undone.`,
+                      confirmLabel: "Delete Customer",
+                      variant: "danger",
+                    });
+                    if (!ok) return;
                     try {
                       await deleteCustomer(selectedCustomer.email);
                       setProfiles((prev) =>
@@ -3223,13 +3290,10 @@ export default function AdminPage() {
                                 {formatDate(order.createdAt)}
                               </td>
                               <td className="px-4 py-3">
-                                <span className={`px-2 py-1 text-xs font-medium rounded ${
-                                  order.status === "shipped" || order.status === "fulfilled"
-                                    ? "bg-green-100 text-green-800"
-                                    : order.status === "paid" || order.status === "processing" || order.status === "packed"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-amber-100 text-amber-800"
-                                }`}>
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${order.status === "paid" || order.status === "processing" || order.status === "packed"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : getOrderStatusColor(order.status)
+                                  }`}>
                                   {order.status}
                                 </span>
                               </td>

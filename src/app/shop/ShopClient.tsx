@@ -1,103 +1,67 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { getProductPrice, useCommerceStore } from "../lib/store";
-import { classNames, formatCurrency } from "../lib/utils";
+import { classNames } from "../lib/utils";
 import type { Category, Product } from "../lib/types";
 import CartDrawer from "../components/CartDrawer";
 import { Breadcrumbs, breadcrumbConfigs } from "../components/Breadcrumbs";
-import { useToast } from "../components/Toast";
+import { ShopPageSkeleton } from "../components/Skeleton";
+import { Grid, List, X } from "lucide-react";
+import UnifiedProductCard from "../components/UnifiedProductCard";
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "name";
-
-function ProductCard({
-  product,
-  wished,
-  onWishlist,
-  onAdd,
-}: {
-  product: Product;
-  wished: boolean;
-  onWishlist: (id: string) => void;
-  onAdd: (product: Product) => void;
-}) {
-  const { sale, compareAt } = getProductPrice(product);
-
-  return (
-    <div className="group relative rounded-lg overflow-hidden card-surface hover-3d">
-      <div className="absolute top-3 right-3 z-10">
-        <button
-          className={classNames(
-            "rounded-full w-9 h-9 flex items-center justify-center transition-colors icon-button",
-            wished ? "bg-[color:var(--primary)] text-white border-transparent" : "hover:bg-[color:var(--primary-soft)]"
-          )}
-          onClick={() => onWishlist(product.id)}
-          aria-label="Toggle wishlist"
-        >
-          {wished ? "♥" : "♡"}
-        </button>
-      </div>
-
-      <Link href={`/products/${product.slug}`}>
-        <div className="aspect-[3/4] overflow-hidden bg-gray-50 relative">
-          <Image
-            src={product.images?.[0] ?? "/file.svg"}
-            alt={product.name}
-            fill
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-            quality={80}
-            className="object-cover transition duration-500 group-hover:scale-105"
-          />
-        </div>
-      </Link>
-
-      <div className="p-3 sm:p-4 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <Link href={`/products/${product.slug}`} className="flex-1">
-            <h3 className="text-sm sm:text-base font-medium text-gray-900 hover:underline">{product.name}</h3>
-          </Link>
-        </div>
-
-        <div className="text-xs sm:text-sm text-gray-500">{product.category}</div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-base font-semibold text-gray-900">{formatCurrency(sale)}</span>
-          {compareAt !== sale && (
-            <span className="text-sm text-gray-400 line-through">{formatCurrency(compareAt)}</span>
-          )}
-        </div>
-
-        <button
-          className="w-full rounded-full btn-primary px-4 py-2.5 text-xs sm:text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-300"
-          onClick={() => onAdd(product)}
-          disabled={product.stock === 0}
-        >
-          {product.stock === 0 ? "Sold Out" : "Add to Cart +"}
-        </button>
-      </div>
-    </div>
-  );
-}
+type ViewMode = "grid" | "list";
 
 export default function ShopClient() {
-  const searchParams = useSearchParams();
   const {
     products,
     wishlist,
-    addToCart,
     toggleWishlist,
     loadMoreProducts,
     productsHasMore,
     productsLoading,
     ready,
   } = useCommerceStore();
-  const { toast } = useToast();
+
+  return (
+    <ProductGrid
+      products={products}
+      wishlist={wishlist}
+      toggleWishlist={toggleWishlist}
+      loadMoreProducts={loadMoreProducts}
+      productsHasMore={productsHasMore}
+      productsLoading={productsLoading}
+      ready={ready}
+    />
+  );
+}
+
+function ProductGrid({
+  products,
+  wishlist,
+  toggleWishlist,
+  loadMoreProducts,
+  productsHasMore,
+  productsLoading,
+  ready,
+}: {
+  products: Product[];
+  wishlist: string[];
+  toggleWishlist: (id: string) => void;
+  loadMoreProducts: () => void;
+  productsHasMore: boolean;
+  productsLoading: boolean;
+  ready: boolean;
+}) {
+  const router = useRouter();
+  const { addToCart: storeAddToCart } = useCommerceStore();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState<string | null>(null);
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState<SortOption>("featured");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showCart, setShowCart] = useState(false);
   const [categoryItems, setCategoryItems] = useState<Category[]>([]);
   const isClient = useSyncExternalStore(
@@ -132,7 +96,14 @@ export default function ShopClient() {
     return Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
   }, [categoryItems, products]);
 
-  const categories = useMemo(() => ["All", ...categoryNames], [categoryNames]);
+
+  // Only show categories that have products
+  const categories = useMemo(() => {
+    const categoriesWithProducts = categoryNames.filter(cat =>
+      products.some(p => p.category === cat)
+    );
+    return ["All", ...categoriesWithProducts];
+  }, [categoryNames, products]);
   const safeCategory = useMemo(
     () => (category !== "All" && !categories.includes(category) ? "All" : category),
     [category, categories]
@@ -159,7 +130,7 @@ export default function ShopClient() {
   }, [products, resolvedSearch, safeCategory, sort]);
 
   if (!isClient || !ready) {
-    return <main className="min-h-screen bg-[color:var(--background)]" />;
+    return <ShopPageSkeleton />;
   }
 
   return (
@@ -172,7 +143,6 @@ export default function ShopClient() {
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Collection</h1>
               <p className="text-xs sm:text-sm text-gray-500">Browse the complete catalog.</p>
             </div>
-            <p className="text-xs text-gray-500">{filteredProducts.length} items</p>
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
               <input
                 type="text"
@@ -205,22 +175,138 @@ export default function ShopClient() {
             </div>
           </div>
 
-          <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+          {/* Results summary, active filters, and view toggle */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-600">
+                <span className="font-semibold text-gray-900">{filteredProducts.length}</span>
+                {" "}result{filteredProducts.length !== 1 ? "s" : ""}
+                {resolvedSearch && (
+                  <span> for &quot;<span className="font-medium">{resolvedSearch}</span>&quot;</span>
+                )}
+              </span>
+
+              {/* Active filters */}
+              {(resolvedSearch || safeCategory !== "All" || sort !== "featured") && (
+                <div className="flex flex-wrap items-center gap-1.5 ml-2">
+                  {safeCategory !== "All" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                      {safeCategory}
+                      <button
+                        onClick={() => setCategory("All")}
+                        className="hover:text-gray-900"
+                        aria-label="Clear category filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {sort !== "featured" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                      {sort === "price-asc" ? "Price ↑" : sort === "price-desc" ? "Price ↓" : "A-Z"}
+                      <button
+                        onClick={() => setSort("featured")}
+                        className="hover:text-gray-900"
+                        aria-label="Clear sort"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  {resolvedSearch && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                      &quot;{resolvedSearch.slice(0, 20)}{resolvedSearch.length > 20 ? "..." : ""}&quot;
+                      <button
+                        onClick={() => setSearch("")}
+                        className="hover:text-gray-900"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSearch("");
+                      setCategory("All");
+                      setSort("featured");
+                    }}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-900 underline ml-1"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* View mode toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={classNames(
+                  "p-2 rounded-md transition-colors",
+                  viewMode === "grid"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-900"
+                )}
+                aria-label="Grid view"
+              >
+                <Grid className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={classNames(
+                  "p-2 rounded-md transition-colors",
+                  viewMode === "list"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-900"
+                )}
+                aria-label="List view"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className={classNames(
+            "mt-6 sm:mt-8",
+            viewMode === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6"
+              : "flex flex-col gap-4"
+          )}>
             {filteredProducts.length === 0 && (
               <div className="col-span-full rounded-2xl border border-gray-200 bg-white/90 p-8 text-center text-sm text-gray-600">
                 No products match your filters.
               </div>
             )}
             {filteredProducts.map((product) => (
-              <ProductCard
+              <UnifiedProductCard
                 key={product.id}
-                product={product}
+                id={product.id}
+                name={product.name}
+                image={product.images?.[0] ?? "/file.svg"}
+                price={getProductPrice(product).sale}
+                oldPrice={getProductPrice(product).compareAt}
+                bestseller={product.bestseller}
+                badge={product.badge}
+                discountPercent={product.discountPercent}
+                stock={product.stock}
+                variants={product.variants}
+                
+                category={product.category}
+                rating={product.rating}
+                colors={product.colors}
+                slug={product.slug}
                 wished={wishlist.includes(product.id)}
                 onWishlist={toggleWishlist}
-                onAdd={(p) => {
-                  addToCart({ productId: p.id, quantity: 1 });
-                  toast.success(`${p.name} added to cart`);
-                  setShowCart(true);
+                onAdd={() => {
+                  if (product.variants && product.variants.length === 1) {
+                    const v = product.variants[0];
+                    storeAddToCart({ productId: product.id, quantity: 1, variantId: v.id, color: v.color, size: v.size });
+                    setShowCart(true);
+                  } else {
+                    router.push(`/products/${product.slug}`);
+                  }
                 }}
               />
             ))}
