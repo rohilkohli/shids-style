@@ -742,5 +742,5 @@ exception
 end;
 $$;
 
-revoke all on function public.create_order_atomic(jsonb, jsonb, text) from public;
-grant execute on function public.create_order_atomic(jsonb, jsonb, text) to service_role;
+revoke all on function public.create_order_atomic(text, jsonb, jsonb) from public;
+grant execute on function public.create_order_atomic(text, jsonb, jsonb) to service_role;
