@@ -350,7 +350,7 @@ export default function Navbar() {
 
           <aside className="fixed left-0 top-16 h-[calc(100%-4rem)] w-[min(86vw,340px)] z-50 bg-white shadow-2xl border-r border-gray-200 flex flex-col transition-colors duration-200 sm:hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-black/20">
-              <p className="text-[11px] uppercase tracking-[0.35em] text-Black font-semibold">Menu</p>
+              <p className="text-[11px] uppercase tracking-[0.35em] text-black font-semibold">Menu</p>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-2 text-sm text-gray-900">
