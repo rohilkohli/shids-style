@@ -23,6 +23,20 @@ const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "ful
 
 type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter" | "contact" | "categories" | "reviews";
 
+const viewLabels: Record<View, string> = {
+  dashboard: "Dashboard",
+  products: "Products",
+  orders: "Orders",
+  customers: "Customers",
+  ledger: "Ledger",
+  discounts: "Discount Codes",
+  hero: "Hero Carousel",
+  newsletter: "Newsletter",
+  contact: "Contact Messages",
+  categories: "Categories",
+  reviews: "Reviews",
+};
+
 const parseList = (value: string) =>
   value
     .split(/[,;]+/)
@@ -172,6 +186,24 @@ export default function AdminPage() {
       requestAnimationFrame(() => setSelectedProduct(products[0]));
     }
   }, [products, selectedProduct]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
 
   useEffect(() => {
     if (!ready) return;
@@ -1081,6 +1113,7 @@ export default function AdminPage() {
 
       {/* Sidebar */}
       <aside
+        id="admin-sidebar"
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col overflow-y-auto max-h-screen transform transition lg:static lg:translate-x-0 lg:w-64 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         style={{ WebkitOverflowScrolling: "touch" }}
@@ -1266,13 +1299,15 @@ export default function AdminPage() {
               <button
                 type="button"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open sidebar"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+                aria-expanded={sidebarOpen}
+                aria-controls="admin-sidebar"
               >
                 <span className="text-lg">☰</span>
               </button>
               <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel</p>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel · {viewLabels[currentView]}</p>
                 <h1 className="text-base sm:text-lg font-semibold text-slate-900">Welcome back{user?.name ? `, ${user.name}` : ""}</h1>
               </div>
             </div>

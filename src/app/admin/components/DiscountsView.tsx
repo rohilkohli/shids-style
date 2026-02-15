@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { formatCurrency, formatDate } from "@/app/lib/utils";
 import { useDialog } from "@/app/components/ConfirmDialog";
 import type { DiscountCode } from "@/app/lib/types";
@@ -20,13 +21,16 @@ export function DiscountsView({
   onSetFlash,
 }: DiscountsViewProps) {
   const dialog = useDialog();
+  const activeCodes = useMemo(() => discountCodes.filter((code) => code.isActive).length, [discountCodes]);
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Discount Codes</h1>
-          <p className="text-sm text-gray-500 mt-1">{discountCodes.length} active codes</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {activeCodes} active · {discountCodes.length} total
+          </p>
         </div>
         <button
           onClick={onCreateClick}
@@ -39,7 +43,6 @@ export function DiscountsView({
         </button>
       </div>
 
-      {/* Discount Codes Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
         <table className="w-full min-w-[760px]">
           <thead className="bg-slate-50 border-b border-gray-200">
@@ -84,11 +87,12 @@ export function DiscountsView({
                         onSetFlash((error as Error).message);
                       }
                     }}
-                    className={`px-2 py-1 text-xs font-medium rounded ${
+                    className={`px-2 py-1 text-xs font-medium rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-slate-300 ${
                       code.isActive
                         ? "bg-green-100 text-green-800 hover:bg-green-200"
                         : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                     }`}
+                    aria-label={`${code.isActive ? "Deactivate" : "Activate"} discount code ${code.code}`}
                   >
                     {code.isActive ? "Active" : "Inactive"}
                   </button>
@@ -115,7 +119,8 @@ export function DiscountsView({
                         }
                       }
                     }}
-                    className="text-red-600 hover:text-red-900 font-medium"
+                    className="font-medium text-red-600 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 rounded"
+                    aria-label={`Delete discount code ${code.code}`}
                   >
                     Delete
                   </button>
