@@ -85,7 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("*")
-    .ilike("email", currentEmail)
+    .eq("email", currentEmail)
     .maybeSingle();
 
   if (error || !data) {
@@ -120,7 +120,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { data: row } = await supabaseAdmin
     .from("profiles")
     .select("*")
-    .ilike("email", currentEmail)
+    .eq("email", currentEmail)
     .maybeSingle();
 
   if (!row) {
@@ -132,7 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: exists } = await supabaseAdmin
       .from("profiles")
       .select("id")
-      .ilike("email", nextEmail)
+      .eq("email", nextEmail)
       .maybeSingle();
     if (exists) {
       return NextResponse.json({ ok: false, error: "Email already in use." }, { status: 409 });
@@ -194,7 +194,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { data: row, error } = await supabaseAdmin
     .from("profiles")
     .select("*")
-    .ilike("email", currentEmail)
+    .eq("email", currentEmail)
     .maybeSingle();
 
   if (error || !row) {

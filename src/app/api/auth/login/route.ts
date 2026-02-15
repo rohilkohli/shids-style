@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("*")
-    .ilike("email", email)
+    .eq("email", email)
     .maybeSingle();
 
   if (profile) {

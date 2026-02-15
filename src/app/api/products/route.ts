@@ -53,6 +53,18 @@ const parseColorList = (value: unknown): ProductColor[] => {
     .filter((entry): entry is ProductColor => entry !== null);
 };
 
+const parseJsonArray = <T>(value: unknown, fallback: T[] = []): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value !== "string" || !value.trim()) return fallback;
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 type VariantRow = {
   id: number;
   product_id: string;
@@ -104,15 +116,11 @@ const mapProductRow = (row: ProductRow, variants?: Variant[]): Product => ({
   stock: Number(row.stock ?? 0),
   rating: row.rating ?? undefined,
   badge: row.badge ?? undefined,
-  tags: Array.isArray(row.tags) ? row.tags : row.tags ? JSON.parse(row.tags) : [],
-  colors: Array.isArray(row.colors) ? row.colors : row.colors ? JSON.parse(row.colors) : [],
-  sizes: Array.isArray(row.sizes) ? row.sizes : row.sizes ? JSON.parse(row.sizes) : [],
-  highlights: Array.isArray(row.highlights)
-    ? row.highlights
-    : row.highlights
-      ? JSON.parse(row.highlights)
-      : [],
-  images: Array.isArray(row.images) ? row.images : row.images ? JSON.parse(row.images) : [],
+  tags: parseJsonArray<string>(row.tags),
+  colors: parseJsonArray<ProductColor>(row.colors),
+  sizes: parseJsonArray<string>(row.sizes),
+  highlights: parseJsonArray<string>(row.highlights),
+  images: parseJsonArray<string>(row.images),
   variants: variants ?? [],
   bestseller: row.bestseller ?? false,
   sku: row.sku ?? undefined,

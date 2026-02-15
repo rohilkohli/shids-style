@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     const { data: discountRow, error: discountError } = await supabaseAdmin
       .from("discount_codes")
       .select("id, code, type, value, max_uses, used_count, expiry_date, is_active")
-      .ilike("code", requestedDiscountCode)
+      .eq("code", requestedDiscountCode)
       .maybeSingle();
 
     if (discountError || !discountRow || !discountRow.is_active) {
