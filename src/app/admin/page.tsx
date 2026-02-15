@@ -259,6 +259,15 @@ export default function AdminPage() {
     return Array.from(new Set(names)).filter(Boolean);
   }, [categoryItems, products]);
 
+  const productsByCategory = useMemo(() => {
+    return products.reduce<Record<string, Product[]>>((acc, product) => {
+      const key = product.category;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(product);
+      return acc;
+    }, {});
+  }, [products]);
+
   const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
 
   const filteredProducts = useMemo(() => {
@@ -1056,6 +1065,11 @@ export default function AdminPage() {
     setShowProductPanel(true);
   };
 
+  const navigateToView = (view: View) => {
+    setCurrentView(view);
+    setSidebarOpen(false);
+  };
+
   return (
     <div className="flex h-screen bg-slate-100/60">
       {sidebarOpen && (
@@ -1079,7 +1093,8 @@ export default function AdminPage() {
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           <button
-            onClick={() => setCurrentView("dashboard")}
+            onClick={() => navigateToView("dashboard")}
+            aria-current={currentView === "dashboard" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "dashboard"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1092,7 +1107,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("products")}
+            onClick={() => navigateToView("products")}
+            aria-current={currentView === "products" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "products"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1105,7 +1121,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("categories")}
+            onClick={() => navigateToView("categories")}
+            aria-current={currentView === "categories" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "categories"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1118,7 +1135,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("orders")}
+            onClick={() => navigateToView("orders")}
+            aria-current={currentView === "orders" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "orders"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1131,7 +1149,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("customers")}
+            onClick={() => navigateToView("customers")}
+            aria-current={currentView === "customers" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "customers"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1144,7 +1163,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("discounts")}
+            onClick={() => navigateToView("discounts")}
+            aria-current={currentView === "discounts" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "discounts"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1157,7 +1177,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("hero")}
+            onClick={() => navigateToView("hero")}
+            aria-current={currentView === "hero" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "hero"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1170,7 +1191,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("newsletter")}
+            onClick={() => navigateToView("newsletter")}
+            aria-current={currentView === "newsletter" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "newsletter"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1184,7 +1206,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("contact")}
+            onClick={() => navigateToView("contact")}
+            aria-current={currentView === "contact" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "contact"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1198,7 +1221,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("reviews")}
+            onClick={() => navigateToView("reviews")}
+            aria-current={currentView === "reviews" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "reviews"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1595,6 +1619,7 @@ export default function AdminPage() {
                               <div className="flex flex-col gap-2">
                                 <select
                                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 focus:border-indigo-500 focus:outline-none"
+                                  aria-label={`Featured product for ${category.name}`}
                                   value={categoryFeaturedDrafts[category.id] ?? ""}
                                   onChange={(event) =>
                                     setCategoryFeaturedDrafts((prev) => ({
@@ -1604,10 +1629,7 @@ export default function AdminPage() {
                                   }
                                 >
                                   <option value="">No featured product</option>
-                                  {(products.filter((product) => product.category === category.name).length
-                                    ? products.filter((product) => product.category === category.name)
-                                    : products
-                                  ).map((product) => (
+                                  {(productsByCategory[category.name]?.length ? productsByCategory[category.name] : products).map((product) => (
                                     <option key={product.id} value={product.id}>
                                       {product.name}
                                     </option>
@@ -1617,8 +1639,9 @@ export default function AdminPage() {
                                   type="button"
                                   onClick={() => handleSaveCategoryFeatured(category.id)}
                                   className="w-fit rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                  aria-label={`Save featured product for ${category.name}`}
                                 >
-                                  Save
+                                  Save Featured
                                 </button>
                               </div>
                             </td>
@@ -1627,8 +1650,9 @@ export default function AdminPage() {
                                 type="button"
                                 onClick={() => handleDeleteCategory(category.id)}
                                 className="text-red-600 hover:text-red-900"
+                                aria-label={`Delete ${category.name} category`}
                               >
-                                Delete
+                                Delete Category
                               </button>
                             </td>
                           </tr>
