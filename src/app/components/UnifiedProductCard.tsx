@@ -69,6 +69,8 @@ export default function UnifiedProductCard({
     return "";
   };
 
+  const productImage = image?.trim() || "/file.svg";
+
   const getColorMeta = (color: string | { name: string; hex: string }) => {
     if (typeof color === "string") {
       return {
@@ -127,14 +129,14 @@ export default function UnifiedProductCard({
       {/* Product Image */}
       <Link
         href={`/products/${slug}`}
-        className="block relative w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden flex-shrink-0"
+        className="block relative w-full aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 border border-black/5 bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#eef2ff_100%)]"
       >
         <Image
-          src={image}
+          src={productImage}
           alt={name}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-contain transition-transform duration-300 group-hover:scale-105"
+          className="object-contain p-3 drop-shadow-[0_10px_18px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
           quality={85}
         />
       </Link>
