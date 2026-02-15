@@ -4,15 +4,51 @@ import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { slugify } from "@/app/lib/utils";
 import type { Product, Variant } from "@/app/lib/types";
 
-const parseList = (value: unknown): string[] =>
+const parseStringList = (value: unknown): string[] =>
   Array.isArray(value)
-    ? value.map((item) => String(item)).filter(Boolean)
+    ? value.map((item) => String(item).trim()).filter(Boolean)
     : typeof value === "string"
       ? value
         .split(/[,;]+/)
         .map((item) => item.trim())
         .filter(Boolean)
       : [];
+
+type ProductColor = { name: string; hex: string };
+
+const parseColorList = (value: unknown): ProductColor[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => {
+      if (entry && typeof entry === "object") {
+        const candidate = entry as { name?: unknown; hex?: unknown };
+        const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
+        const hex = typeof candidate.hex === "string" ? candidate.hex.trim() : "";
+        if (name && hex) return { name, hex };
+        return null;
+      }
+
+      if (typeof entry === "string") {
+        const trimmed = entry.trim();
+        if (!trimmed) return null;
+        if (trimmed.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(trimmed) as { name?: unknown; hex?: unknown };
+            const name = typeof parsed.name === "string" ? parsed.name.trim() : "";
+            const hex = typeof parsed.hex === "string" ? parsed.hex.trim() : "";
+            if (name && hex) return { name, hex };
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+
+      return null;
+    })
+    .filter((entry): entry is ProductColor => entry !== null);
+};
 
 type VariantRow = {
   id: number;
@@ -181,11 +217,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       stock: typeof body.stock === "number" ? body.stock : Number(body.stock ?? current.stock),
       rating: body.rating !== undefined ? body.rating : current.rating,
       badge: body.badge?.trim() ?? current.badge,
-      tags: body.tags ? parseList(body.tags) : current.tags,
-      colors: body.colors ? parseList(body.colors) : current.colors,
-      sizes: body.sizes ? parseList(body.sizes) : current.sizes,
-      highlights: body.highlights ? parseList(body.highlights) : current.highlights,
-      images: body.images ? parseList(body.images) : current.images,
+      tags: body.tags ? parseStringList(body.tags) : current.tags,
+      colors: body.colors ? parseColorList(body.colors) : current.colors,
+      sizes: body.sizes ? parseStringList(body.sizes) : current.sizes,
+      highlights: body.highlights ? parseStringList(body.highlights) : current.highlights,
+      images: body.images ? parseStringList(body.images) : current.images,
       bestseller: typeof body.bestseller === 'boolean' ? body.bestseller : current.bestseller ?? false,
       sku: body.sku?.trim() ?? current.sku,
       updated_at: updatedAt,
