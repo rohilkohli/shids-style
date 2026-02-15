@@ -85,6 +85,19 @@ export default function UnifiedProductCard({
     };
   };
 
+  const isLightHex = (hex: string) => {
+    if (!hex) return false;
+    const normalized = hex.replace("#", "");
+    const expanded = normalized.length === 3
+      ? normalized.split("").map((value) => `${value}${value}`).join("")
+      : normalized;
+    const red = Number.parseInt(expanded.slice(0, 2), 16);
+    const green = Number.parseInt(expanded.slice(2, 4), 16);
+    const blue = Number.parseInt(expanded.slice(4, 6), 16);
+    const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    return luminance > 0.84;
+  };
+
   return (
     <div className="group relative h-full flex flex-col rounded-2xl overflow-hidden card-surface hover-3d">
       {/* Badges */}
@@ -214,7 +227,7 @@ export default function UnifiedProductCard({
                   return (
                     <span
                       key={`${name}-${idx}`}
-                      className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-black/10 bg-gray-200 px-1 text-[9px] font-semibold uppercase text-gray-700 shadow-sm sm:h-5 sm:min-w-5"
+                      className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full border bg-gray-200 px-1 text-[9px] font-semibold uppercase text-gray-700 shadow-sm sm:h-5 sm:min-w-5 ${hex && isLightHex(hex) ? "border-black/25" : "border-black/10"}`}
                       style={hex ? { backgroundColor: hex } : undefined}
                       aria-label={`Color ${name}`}
                       title={name}
