@@ -28,30 +28,7 @@ export type UnifiedProductCardProps = {
 const SHIPPING_DURATION = "48 hours";
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-const NAMED_COLOR_MAP: Record<string, string> = {
-  white: "#ffffff",
-  black: "#111111",
-  gray: "#9ca3af",
-  grey: "#9ca3af",
-  blue: "#3b82f6",
-  navy: "#1e3a8a",
-  indigo: "#4f46e5",
-  purple: "#7c3aed",
-  violet: "#8b5cf6",
-  pink: "#ec4899",
-  red: "#ef4444",
-  maroon: "#7f1d1d",
-  green: "#22c55e",
-  olive: "#4d7c0f",
-  yellow: "#eab308",
-  orange: "#f97316",
-  brown: "#8b5e3c",
-  beige: "#d6c1a3",
-  cream: "#f5f0e6",
-  lilac: "#c4b5fd",
-  lavender: "#d8b4fe",
-};
-
+const HEX_COLOR_WITHOUT_HASH_PATTERN = /^(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 export default function UnifiedProductCard({
   id,
   name,
@@ -82,29 +59,27 @@ export default function UnifiedProductCard({
   const lowStock = singleVariant ? (stock > 0 && stock <= 3) : (totalVariantStock > 0 && totalVariantStock <= 3);
   const outOfStock = singleVariant ? stock === 0 : totalVariantStock === 0;
 
-  const variantColors = Array.from(new Set((variants ?? []).map((variant) => variant.color).filter(Boolean)));
-  const displayColors =
-    colors && colors.length > 0
-      ? colors
-      : variantColors.map((colorName) => ({ name: colorName, hex: "" }));
+  const displayColors = colors ?? [];
+
+  const normalizeHex = (rawHex?: string) => {
+    if (!rawHex) return "";
+    const cleaned = rawHex.trim();
+    if (HEX_COLOR_PATTERN.test(cleaned)) return cleaned;
+    if (HEX_COLOR_WITHOUT_HASH_PATTERN.test(cleaned)) return `#${cleaned}`;
+    return "";
+  };
 
   const getColorMeta = (color: string | { name: string; hex: string }) => {
-    const resolveHex = (name: string, rawHex?: string) => {
-      if (rawHex && HEX_COLOR_PATTERN.test(rawHex)) return rawHex;
-      const normalizedName = name.trim().toLowerCase();
-      return NAMED_COLOR_MAP[normalizedName] ?? "";
-    };
-
     if (typeof color === "string") {
       return {
         name: color,
-        hex: resolveHex(color, color),
+        hex: normalizeHex(color),
       };
     }
 
     return {
       name: color.name,
-      hex: resolveHex(color.name, color.hex),
+      hex: normalizeHex(color.hex),
     };
   };
 
