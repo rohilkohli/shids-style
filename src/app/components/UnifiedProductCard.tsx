@@ -27,6 +27,8 @@ export type UnifiedProductCardProps = {
 
 const SHIPPING_DURATION = "48 hours";
 
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
 export default function UnifiedProductCard({
   id,
   name,
@@ -56,6 +58,26 @@ export default function UnifiedProductCard({
   const singleVariant = variantCount === 1;
   const lowStock = singleVariant ? (stock > 0 && stock <= 3) : (totalVariantStock > 0 && totalVariantStock <= 3);
   const outOfStock = singleVariant ? stock === 0 : totalVariantStock === 0;
+
+  const variantColors = Array.from(new Set((variants ?? []).map((variant) => variant.color).filter(Boolean)));
+  const displayColors =
+    colors && colors.length > 0
+      ? colors
+      : variantColors.map((colorName) => ({ name: colorName, hex: "" }));
+
+  const getColorMeta = (color: string | { name: string; hex: string }) => {
+    if (typeof color === "string") {
+      return {
+        name: color,
+        hex: HEX_COLOR_PATTERN.test(color) ? color : "",
+      };
+    }
+
+    return {
+      name: color.name,
+      hex: HEX_COLOR_PATTERN.test(color.hex) ? color.hex : "",
+    };
+  };
 
   return (
     <div className="group relative h-full flex flex-col rounded-2xl overflow-hidden card-surface hover-3d">
@@ -171,23 +193,25 @@ export default function UnifiedProductCard({
         </div>
 
         <div className="min-h-[1.5rem]">
-          {colors && colors.length > 0 && (
+          {displayColors.length > 0 && (
               <div className="flex items-center gap-1.5">
-                {colors.slice(0, 4).map((color, idx) => {
-                  const name = typeof color === "string" ? color : color.name;
-                  const hex = typeof color === "string" ? color : color.hex;
+                {displayColors.slice(0, 4).map((color, idx) => {
+                  const { name, hex } = getColorMeta(color);
                   return (
                     <span
                       key={`${name}-${idx}`}
-                      className="h-4 w-4 sm:h-5 sm:w-5 rounded-full border border-black/10 shadow-sm"
-                      style={{ backgroundColor: hex }}
+                      className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-black/10 bg-gray-200 px-1 text-[9px] font-semibold uppercase text-gray-700 shadow-sm sm:h-5 sm:min-w-5"
+                      style={hex ? { backgroundColor: hex } : undefined}
                       aria-label={`Color ${name}`}
-                    />
+                      title={name}
+                    >
+                      {!hex ? name.charAt(0) : null}
+                    </span>
                   );
                 })}
-                {colors.length > 4 && (
+                {displayColors.length > 4 && (
                   <span className="text-[10px] sm:text-[11px] text-gray-600 font-semibold">
-                    +{colors.length - 4}
+                    +{displayColors.length - 4}
                   </span>
                 )}
               </div>
