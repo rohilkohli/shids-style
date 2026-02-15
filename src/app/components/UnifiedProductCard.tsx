@@ -142,23 +142,15 @@ export default function UnifiedProductCard({
       {/* Product Image */}
       <Link
         href={`/products/${slug}`}
-        className="block relative w-full aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 border border-black/5 bg-[radial-gradient(circle_at_20%_0%,_#ffffff_0%,_#eef2ff_48%,_#f8eefe_100%)]"
+        className="block relative w-full aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 border border-black/5 bg-gradient-to-b from-white to-gray-50"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.15)_0%,rgba(255,255,255,0.55)_35%,rgba(255,255,255,0.1)_70%)] opacity-70 transition-opacity duration-300 group-hover:opacity-100"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-10 bottom-3 h-7 rounded-full bg-black/10 blur-md"
-        />
         <Image
           src={productImage}
           alt={name}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-contain p-3 drop-shadow-[0_14px_26px_rgba(15,23,42,0.2)] transition-transform duration-500 ease-out group-hover:scale-[1.06] group-hover:-translate-y-1"
-          quality={90}
+          className="object-contain p-4 drop-shadow-[0_8px_16px_rgba(15,23,42,0.12)] transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+          quality={88}
         />
       </Link>
 
