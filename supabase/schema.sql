@@ -744,3 +744,96 @@ $$;
 
 revoke all on function public.create_order_atomic(text, jsonb, jsonb) from public;
 grant execute on function public.create_order_atomic(text, jsonb, jsonb) to service_role;
+
+-- ==========================================
+-- 8. REVIEWS & WISHLIST
+-- ==========================================
+
+create table if not exists public.reviews (
+  id bigserial primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  product_id text not null references public.products(id) on delete cascade,
+  rating integer not null check (rating between 1 and 5),
+  comment text,
+  created_at timestamptz not null default now(),
+  constraint reviews_user_product_unique unique (user_id, product_id)
+);
+
+create index if not exists idx_reviews_product_id on public.reviews(product_id);
+create index if not exists idx_reviews_user_id on public.reviews(user_id);
+
+alter table public.reviews enable row level security;
+
+drop policy if exists "Public reviews are viewable" on public.reviews;
+drop policy if exists "Authenticated users can create own reviews" on public.reviews;
+drop policy if exists "Users can delete own reviews" on public.reviews;
+
+create policy "Public reviews are viewable"
+  on public.reviews for select
+  using (true);
+
+create policy "Authenticated users can create own reviews"
+  on public.reviews for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own reviews"
+  on public.reviews for delete
+  using (auth.uid() = user_id);
+
+create or replace function public.update_product_rating()
+returns trigger
+language plpgsql
+as $$
+declare
+  target_product_id text;
+  avg_rating numeric;
+  total_reviews bigint;
+begin
+  target_product_id := coalesce(new.product_id, old.product_id);
+
+  select coalesce(avg(rating)::numeric(3,2), 0), count(*)
+  into avg_rating, total_reviews
+  from public.reviews
+  where product_id = target_product_id;
+
+  update public.products
+  set rating = case when total_reviews > 0 then avg_rating else null end,
+      updated_at = now()
+  where id = target_product_id;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists reviews_update_product_rating on public.reviews;
+create trigger reviews_update_product_rating
+  after insert or update or delete on public.reviews
+  for each row
+  execute procedure public.update_product_rating();
+
+create table if not exists public.wishlists (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  product_id text not null references public.products(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, product_id)
+);
+
+create index if not exists idx_wishlists_product_id on public.wishlists(product_id);
+
+alter table public.wishlists enable row level security;
+
+drop policy if exists "Users can view own wishlist" on public.wishlists;
+drop policy if exists "Users can insert own wishlist" on public.wishlists;
+drop policy if exists "Users can delete own wishlist" on public.wishlists;
+
+create policy "Users can view own wishlist"
+  on public.wishlists for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own wishlist"
+  on public.wishlists for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own wishlist"
+  on public.wishlists for delete
+  using (auth.uid() = user_id);

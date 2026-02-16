@@ -1,6 +1,10 @@
+"use client";
+
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Heart } from "lucide-react";
+import { useWishlist } from "@/app/hooks/useWishlist";
 import { formatCurrency, toTitleCase } from "../lib/utils";
 import type { Variant } from "../lib/types";
 
@@ -50,6 +54,9 @@ export default function UnifiedProductCard({
   onWishlist,
   onAdd,
 }: UnifiedProductCardProps) {
+  const { wishlistSet, toggle } = useWishlist();
+  const isWishlisted = onWishlist ? wished : wishlistSet.has(id);
+
   // Only show discount when admin explicitly set `discountPercent`
   const computedDiscount = typeof discountPercent === "number" ? discountPercent : 0;
   // Variant-aware stock summary
@@ -121,23 +128,27 @@ export default function UnifiedProductCard({
         )}
       </div>
       {/* Wishlist button */}
-      {onWishlist && (
-        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
           <button
-            className={`rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-colors icon-button text-lg leading-none ${wished ? "bg-[color:var(--primary)] text-white border-transparent" : "hover:bg-[color:var(--primary-soft)]"
+            className={`rounded-full w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-colors icon-button text-lg leading-none ${isWishlisted ? "bg-[color:var(--primary)] text-white border-transparent" : "hover:bg-[color:var(--primary-soft)]"
               }`}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onWishlist(id);
+              if (onWishlist) {
+                onWishlist(id);
+                return;
+              }
+
+              toggle(id);
             }}
-            aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
-            aria-pressed={wished}
+            aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            aria-pressed={isWishlisted}
           >
-            {wished ? "♥" : "♡"}
+            <Heart className="h-5 w-5" fill={isWishlisted ? "currentColor" : "none"} />
           </button>
         </div>
-      )}
+
 
       {/* Product Image */}
       <Link
