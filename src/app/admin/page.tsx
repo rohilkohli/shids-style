@@ -23,6 +23,20 @@ const statuses: OrderStatus[] = ["pending", "processing", "paid", "packed", "ful
 
 type View = "dashboard" | "products" | "orders" | "customers" | "ledger" | "discounts" | "hero" | "newsletter" | "contact" | "categories" | "reviews";
 
+const viewLabels: Record<View, string> = {
+  dashboard: "Dashboard",
+  products: "Products",
+  orders: "Orders",
+  customers: "Customers",
+  ledger: "Ledger",
+  discounts: "Discount Codes",
+  hero: "Hero Carousel",
+  newsletter: "Newsletter",
+  contact: "Contact Messages",
+  categories: "Categories",
+  reviews: "Reviews",
+};
+
 const parseList = (value: string) =>
   value
     .split(/[,;]+/)
@@ -174,6 +188,24 @@ export default function AdminPage() {
   }, [products, selectedProduct]);
 
   useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
+
+  useEffect(() => {
     if (!ready) return;
     if (!user) {
       router.replace("/login");
@@ -259,7 +291,23 @@ export default function AdminPage() {
     return Array.from(new Set(names)).filter(Boolean);
   }, [categoryItems, products]);
 
+  const productsByCategory = useMemo(() => {
+    return products.reduce<Record<string, Product[]>>((acc, product) => {
+      const key = product.category;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(product);
+      return acc;
+    }, {});
+  }, [products]);
+
   const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
+
+  const getTotalStock = (product: Product) => {
+    if (product.variants?.length) {
+      return product.variants.reduce((sum, variant) => sum + Number(variant.stock ?? 0), 0);
+    }
+    return Number(product.stock ?? 0);
+  };
 
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -283,7 +331,16 @@ export default function AdminPage() {
 
   const totalOrders = orders.length;
 
-  const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD), [products]);
+  const lowStockProducts = useMemo(
+    () =>
+      products.filter((product) => {
+        const totalStock = product.variants?.length
+          ? product.variants.reduce((sum, variant) => sum + Number(variant.stock ?? 0), 0)
+          : Number(product.stock ?? 0);
+        return totalStock <= LOW_STOCK_THRESHOLD;
+      }),
+    [products]
+  );
 
   const adminEmails = useMemo(() => {
     return new Set(
@@ -464,57 +521,12 @@ export default function AdminPage() {
 
   const productSteps = [
     { title: "Basics", description: "Name, Category, Description" },
-    { title: "Pricing & Stock", description: "Price, Discount, Global Stock" },
-    { title: "Variants", description: "Colors, Sizes, Specific Stock" },
+    { title: "Pricing", description: "Price, Discount, Global quantity" },
+    { title: "Variants", description: "Colors, Sizes, Variant quantity" },
     { title: "Media", description: "Images" },
     { title: "Review", description: "Final check" },
   ];
 
-  const productPresets: {
-    label: string;
-    helper: string;
-    values: Partial<ProductFormState>;
-  }[] = [
-      {
-        label: "Bestseller Tee",
-        helper: "240 GSM cotton, evergreen streetwear",
-        values: {
-          category: "Oversized Tees",
-          price: 699,
-          originalPrice: 999,
-          stock: 80,
-          tags: "oversized,streetwear,unisex,summer",
-          highlights: "240 GSM cotton;Boxy fit;Pre-shrunk;Bio-washed",
-          badge: "Bestseller",
-        },
-      },
-      {
-        label: "Denim Cargo",
-        helper: "Utility-forward fit with stretch",
-        values: {
-          category: "Cargo & Denims",
-          price: 1499,
-          originalPrice: 1999,
-          stock: 60,
-          tags: "cargo,denim,utility,stretch",
-          highlights: "Stretch denim;Six pockets;YKK zippers;Tailored taper",
-          badge: "New drop",
-        },
-      },
-      {
-        label: "Dress Drop",
-        helper: "Occasion-ready, light and flowy",
-        values: {
-          category: "Summer Dresses",
-          price: 1299,
-          originalPrice: 1699,
-          stock: 50,
-          tags: "dress,summer,occasion,lightweight",
-          highlights: "Lined;Wrinkle-resistant;Pockets;Breathable weave",
-          badge: "Limited",
-        },
-      },
-    ];
   const lastProductStep = productSteps.length - 1;
 
   const resetForm = () => {
@@ -612,23 +624,13 @@ export default function AdminPage() {
     setProductStep(Math.min(nextStep, lastProductStep));
   };
 
-  const applyPreset = (preset: (typeof productPresets)[number]) => {
-    setProductForm((prev) => ({
-      ...prev,
-      ...preset.values,
-    }));
-    setFlash(`Preset "${preset.label}" applied`);
-    setTimeout(() => setFlash(null), 1400);
-    setProductStep(1);
-  };
-
   const reviewGaps = (() => {
     const gaps: string[] = [];
     if (!(productForm.name ?? "").trim()) gaps.push("Name");
     if (!(productForm.category ?? "").trim()) gaps.push("Category");
     if (!(productForm.description ?? "").trim()) gaps.push("Description");
     if (!(Number(productForm.price) > 0)) gaps.push("Price");
-    if (!(Number(productForm.stock) > 0)) gaps.push("Stock");
+    if (!(Number(productForm.stock) > 0)) gaps.push("Global quantity");
     if (parseImages(productForm.images).length === 0) gaps.push("Images");
     return gaps;
   })();
@@ -661,7 +663,7 @@ export default function AdminPage() {
     pushChange("Price", editBaseline.price, Number(productForm.price) || 0);
     pushChange("Compare at", editBaseline.originalPrice ?? "—", productForm.originalPrice ?? "—");
     pushChange("Discount %", editBaseline.discountPercent ?? 0, productForm.discountPercent ?? 0);
-    pushChange("Stock", editBaseline.stock, Number(productForm.stock) || 0);
+    pushChange("Global quantity", editBaseline.stock, Number(productForm.stock) || 0);
     pushChange("Badge", editBaseline.badge ?? "—", productForm.badge ?? "—");
 
     // Compare baseline colors (string[] or ProductColor[]) vs current (ProductColor[])
@@ -1056,6 +1058,11 @@ export default function AdminPage() {
     setShowProductPanel(true);
   };
 
+  const navigateToView = (view: View) => {
+    setCurrentView(view);
+    setSidebarOpen(false);
+  };
+
   return (
     <div className="flex h-screen bg-slate-100/60">
       {sidebarOpen && (
@@ -1067,6 +1074,7 @@ export default function AdminPage() {
 
       {/* Sidebar */}
       <aside
+        id="admin-sidebar"
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col overflow-y-auto max-h-screen transform transition lg:static lg:translate-x-0 lg:w-64 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         style={{ WebkitOverflowScrolling: "touch" }}
@@ -1079,7 +1087,8 @@ export default function AdminPage() {
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           <button
-            onClick={() => setCurrentView("dashboard")}
+            onClick={() => navigateToView("dashboard")}
+            aria-current={currentView === "dashboard" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "dashboard"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1092,7 +1101,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("products")}
+            onClick={() => navigateToView("products")}
+            aria-current={currentView === "products" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "products"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1105,7 +1115,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("categories")}
+            onClick={() => navigateToView("categories")}
+            aria-current={currentView === "categories" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "categories"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1118,7 +1129,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("orders")}
+            onClick={() => navigateToView("orders")}
+            aria-current={currentView === "orders" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "orders"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1131,7 +1143,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("customers")}
+            onClick={() => navigateToView("customers")}
+            aria-current={currentView === "customers" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "customers"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1144,7 +1157,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("discounts")}
+            onClick={() => navigateToView("discounts")}
+            aria-current={currentView === "discounts" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "discounts"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1157,7 +1171,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("hero")}
+            onClick={() => navigateToView("hero")}
+            aria-current={currentView === "hero" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "hero"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1170,7 +1185,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("newsletter")}
+            onClick={() => navigateToView("newsletter")}
+            aria-current={currentView === "newsletter" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "newsletter"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1184,7 +1200,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("contact")}
+            onClick={() => navigateToView("contact")}
+            aria-current={currentView === "contact" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "contact"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1198,7 +1215,8 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setCurrentView("reviews")}
+            onClick={() => navigateToView("reviews")}
+            aria-current={currentView === "reviews" ? "page" : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${currentView === "reviews"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -1242,13 +1260,15 @@ export default function AdminPage() {
               <button
                 type="button"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open sidebar"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+                aria-expanded={sidebarOpen}
+                aria-controls="admin-sidebar"
               >
                 <span className="text-lg">☰</span>
               </button>
               <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel</p>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Seller Panel · {viewLabels[currentView]}</p>
                 <h1 className="text-base sm:text-lg font-semibold text-slate-900">Welcome back{user?.name ? `, ${user.name}` : ""}</h1>
               </div>
             </div>
@@ -1509,7 +1529,7 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {product.stock > LOW_STOCK_THRESHOLD ? (
+                            {getTotalStock(product) > LOW_STOCK_THRESHOLD ? (
                               <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
                                 Active
                               </span>
@@ -1520,7 +1540,7 @@ export default function AdminPage() {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {product.stock}
+                            {getTotalStock(product)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             <div className="flex flex-col">
@@ -1595,6 +1615,7 @@ export default function AdminPage() {
                               <div className="flex flex-col gap-2">
                                 <select
                                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 focus:border-indigo-500 focus:outline-none"
+                                  aria-label={`Featured product for ${category.name}`}
                                   value={categoryFeaturedDrafts[category.id] ?? ""}
                                   onChange={(event) =>
                                     setCategoryFeaturedDrafts((prev) => ({
@@ -1604,10 +1625,7 @@ export default function AdminPage() {
                                   }
                                 >
                                   <option value="">No featured product</option>
-                                  {(products.filter((product) => product.category === category.name).length
-                                    ? products.filter((product) => product.category === category.name)
-                                    : products
-                                  ).map((product) => (
+                                  {(productsByCategory[category.name]?.length ? productsByCategory[category.name] : products).map((product) => (
                                     <option key={product.id} value={product.id}>
                                       {product.name}
                                     </option>
@@ -1617,8 +1635,9 @@ export default function AdminPage() {
                                   type="button"
                                   onClick={() => handleSaveCategoryFeatured(category.id)}
                                   className="w-fit rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                  aria-label={`Save featured product for ${category.name}`}
                                 >
-                                  Save
+                                  Save Featured
                                 </button>
                               </div>
                             </td>
@@ -1627,8 +1646,9 @@ export default function AdminPage() {
                                 type="button"
                                 onClick={() => handleDeleteCategory(category.id)}
                                 className="text-red-600 hover:text-red-900"
+                                aria-label={`Delete ${category.name} category`}
                               >
-                                Delete
+                                Delete Category
                               </button>
                             </td>
                           </tr>
@@ -2127,34 +2147,6 @@ export default function AdminPage() {
 
               {productStep === 0 && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Seller shortcuts</p>
-                        <p className="text-sm text-gray-700">Apply a preset to auto-fill pricing, tags, and highlights.</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {productPresets.map((preset) => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => applyPreset(preset)}
-                            className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-gray-800 border border-gray-200 shadow-sm hover:border-indigo-200 hover:text-indigo-700 transition"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-3">
-                      {productPresets.map((preset) => (
-                        <div key={`${preset.label}-helper`} className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2">
-                          <p className="font-semibold text-gray-800">{preset.label}</p>
-                          <p className="text-gray-600">{preset.helper}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="text-sm font-medium text-gray-700">
                       Name
@@ -2241,7 +2233,7 @@ export default function AdminPage() {
                     />
                   </label>
                   <label className="text-sm font-medium text-gray-700">
-                    Stock
+                    Global quantity
                     <input
                       type="number"
                       min={0}
@@ -2343,7 +2335,7 @@ export default function AdminPage() {
                   <div className="space-y-4 pt-4 border-t border-gray-100">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">Variants & Stock</h3>
+                        <h3 className="text-sm font-medium text-gray-900">Variants</h3>
                         <p className="text-xs text-gray-500">Manage stock info for specific combinations.</p>
                       </div>
                       <button
@@ -2696,7 +2688,7 @@ export default function AdminPage() {
                         <span className="font-medium text-gray-900">₹{productForm.price || 0}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Stock</span>
+                        <span className="text-gray-500">Global quantity</span>
                         <span className="font-medium text-gray-900">{productForm.stock || 0}</span>
                       </div>
                     </div>
