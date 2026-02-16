@@ -302,6 +302,13 @@ export default function AdminPage() {
 
   const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
 
+  const getTotalStock = (product: Product) => {
+    if (product.variants?.length) {
+      return product.variants.reduce((sum, variant) => sum + Number(variant.stock ?? 0), 0);
+    }
+    return Number(product.stock ?? 0);
+  };
+
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     return products.filter((product) => {
@@ -324,7 +331,16 @@ export default function AdminPage() {
 
   const totalOrders = orders.length;
 
-  const lowStockProducts = useMemo(() => products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD), [products]);
+  const lowStockProducts = useMemo(
+    () =>
+      products.filter((product) => {
+        const totalStock = product.variants?.length
+          ? product.variants.reduce((sum, variant) => sum + Number(variant.stock ?? 0), 0)
+          : Number(product.stock ?? 0);
+        return totalStock <= LOW_STOCK_THRESHOLD;
+      }),
+    [products]
+  );
 
   const adminEmails = useMemo(() => {
     return new Set(
@@ -505,57 +521,12 @@ export default function AdminPage() {
 
   const productSteps = [
     { title: "Basics", description: "Name, Category, Description" },
-    { title: "Pricing & Stock", description: "Price, Discount, Global Stock" },
-    { title: "Variants", description: "Colors, Sizes, Specific Stock" },
+    { title: "Pricing", description: "Price, Discount, Global quantity" },
+    { title: "Variants", description: "Colors, Sizes, Variant quantity" },
     { title: "Media", description: "Images" },
     { title: "Review", description: "Final check" },
   ];
 
-  const productPresets: {
-    label: string;
-    helper: string;
-    values: Partial<ProductFormState>;
-  }[] = [
-      {
-        label: "Bestseller Tee",
-        helper: "240 GSM cotton, evergreen streetwear",
-        values: {
-          category: "Oversized Tees",
-          price: 699,
-          originalPrice: 999,
-          stock: 80,
-          tags: "oversized,streetwear,unisex,summer",
-          highlights: "240 GSM cotton;Boxy fit;Pre-shrunk;Bio-washed",
-          badge: "Bestseller",
-        },
-      },
-      {
-        label: "Denim Cargo",
-        helper: "Utility-forward fit with stretch",
-        values: {
-          category: "Cargo & Denims",
-          price: 1499,
-          originalPrice: 1999,
-          stock: 60,
-          tags: "cargo,denim,utility,stretch",
-          highlights: "Stretch denim;Six pockets;YKK zippers;Tailored taper",
-          badge: "New drop",
-        },
-      },
-      {
-        label: "Dress Drop",
-        helper: "Occasion-ready, light and flowy",
-        values: {
-          category: "Summer Dresses",
-          price: 1299,
-          originalPrice: 1699,
-          stock: 50,
-          tags: "dress,summer,occasion,lightweight",
-          highlights: "Lined;Wrinkle-resistant;Pockets;Breathable weave",
-          badge: "Limited",
-        },
-      },
-    ];
   const lastProductStep = productSteps.length - 1;
 
   const resetForm = () => {
@@ -653,23 +624,13 @@ export default function AdminPage() {
     setProductStep(Math.min(nextStep, lastProductStep));
   };
 
-  const applyPreset = (preset: (typeof productPresets)[number]) => {
-    setProductForm((prev) => ({
-      ...prev,
-      ...preset.values,
-    }));
-    setFlash(`Preset "${preset.label}" applied`);
-    setTimeout(() => setFlash(null), 1400);
-    setProductStep(1);
-  };
-
   const reviewGaps = (() => {
     const gaps: string[] = [];
     if (!(productForm.name ?? "").trim()) gaps.push("Name");
     if (!(productForm.category ?? "").trim()) gaps.push("Category");
     if (!(productForm.description ?? "").trim()) gaps.push("Description");
     if (!(Number(productForm.price) > 0)) gaps.push("Price");
-    if (!(Number(productForm.stock) > 0)) gaps.push("Stock");
+    if (!(Number(productForm.stock) > 0)) gaps.push("Global quantity");
     if (parseImages(productForm.images).length === 0) gaps.push("Images");
     return gaps;
   })();
@@ -702,7 +663,7 @@ export default function AdminPage() {
     pushChange("Price", editBaseline.price, Number(productForm.price) || 0);
     pushChange("Compare at", editBaseline.originalPrice ?? "—", productForm.originalPrice ?? "—");
     pushChange("Discount %", editBaseline.discountPercent ?? 0, productForm.discountPercent ?? 0);
-    pushChange("Stock", editBaseline.stock, Number(productForm.stock) || 0);
+    pushChange("Global quantity", editBaseline.stock, Number(productForm.stock) || 0);
     pushChange("Badge", editBaseline.badge ?? "—", productForm.badge ?? "—");
 
     // Compare baseline colors (string[] or ProductColor[]) vs current (ProductColor[])
@@ -1568,7 +1529,7 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {product.stock > LOW_STOCK_THRESHOLD ? (
+                            {getTotalStock(product) > LOW_STOCK_THRESHOLD ? (
                               <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
                                 Active
                               </span>
@@ -1579,7 +1540,7 @@ export default function AdminPage() {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {product.stock}
+                            {getTotalStock(product)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             <div className="flex flex-col">
@@ -2186,34 +2147,6 @@ export default function AdminPage() {
 
               {productStep === 0 && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Seller shortcuts</p>
-                        <p className="text-sm text-gray-700">Apply a preset to auto-fill pricing, tags, and highlights.</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {productPresets.map((preset) => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => applyPreset(preset)}
-                            className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-gray-800 border border-gray-200 shadow-sm hover:border-indigo-200 hover:text-indigo-700 transition"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-3">
-                      {productPresets.map((preset) => (
-                        <div key={`${preset.label}-helper`} className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2">
-                          <p className="font-semibold text-gray-800">{preset.label}</p>
-                          <p className="text-gray-600">{preset.helper}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="text-sm font-medium text-gray-700">
                       Name
@@ -2300,7 +2233,7 @@ export default function AdminPage() {
                     />
                   </label>
                   <label className="text-sm font-medium text-gray-700">
-                    Stock
+                    Global quantity
                     <input
                       type="number"
                       min={0}
@@ -2402,7 +2335,7 @@ export default function AdminPage() {
                   <div className="space-y-4 pt-4 border-t border-gray-100">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">Variants & Stock</h3>
+                        <h3 className="text-sm font-medium text-gray-900">Variants</h3>
                         <p className="text-xs text-gray-500">Manage stock info for specific combinations.</p>
                       </div>
                       <button
@@ -2755,7 +2688,7 @@ export default function AdminPage() {
                         <span className="font-medium text-gray-900">₹{productForm.price || 0}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Stock</span>
+                        <span className="text-gray-500">Global quantity</span>
                         <span className="font-medium text-gray-900">{productForm.stock || 0}</span>
                       </div>
                     </div>
