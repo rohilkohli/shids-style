@@ -15,6 +15,7 @@ import { useDialog } from "@/app/components/ConfirmDialog";
 import ProductDescriptionEditor from "@/app/components/ProductDescriptionEditor";
 import { NewsletterView, ContactView, DiscountsView } from "./components";
 import type { NewsletterEntry, ContactMessage, HeroEntry, ProfileSummary, ProductFormState } from "./types";
+import DashboardStats from "./components/DashboardStats";
 
 import { ColorPicker } from "../components/ColorPicker";
 import type { ProductColor, Variant } from "../lib/types";
@@ -1689,6 +1690,8 @@ export default function AdminPage() {
                 <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
                 <p className="text-sm text-gray-500 mt-1">{orders.length} total orders</p>
               </div>
+
+              <DashboardStats />
 
               {/* Orders Table */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
