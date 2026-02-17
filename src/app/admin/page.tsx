@@ -769,7 +769,7 @@ export default function AdminPage() {
         tags,
         highlights,
         images,
-        badge: productForm.badge?.trim() || undefined,
+        badge: (productForm.badge ?? "").trim(),
         rating: 4.5,
         // [NEW] Support for admin bestseller flag and SKU
         bestseller: productForm.bestseller ?? false,
@@ -803,7 +803,7 @@ export default function AdminPage() {
         tags,
         highlights,
         images,
-        badge: productForm.badge?.trim() || undefined,
+        badge: (productForm.badge ?? "").trim(),
         bestseller: productForm.bestseller ?? false,
         // Do NOT allow updating SKU after creation; keep original SKU unchanged on edits
       };
