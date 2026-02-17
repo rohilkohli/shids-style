@@ -193,6 +193,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const name = body.name?.trim() ?? current.name;
   const slug = body.slug?.trim() ?? slugify(name);
   const updatedAt = new Date().toISOString();
+  const hasBadgeField = Object.prototype.hasOwnProperty.call(body, "badge");
+  const nextBadge = hasBadgeField
+    ? (typeof body.badge === "string" ? body.badge.trim() : "")
+    : current.badge;
 
   const { data, error } = await supabaseAdmin
     .from("products")
@@ -216,7 +220,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             : current.discount_percent,
       stock: typeof body.stock === "number" ? body.stock : Number(body.stock ?? current.stock),
       rating: body.rating !== undefined ? body.rating : current.rating,
-      badge: body.badge?.trim() ?? current.badge,
+      badge: hasBadgeField ? (nextBadge ? nextBadge : null) : current.badge,
       tags: body.tags ? parseStringList(body.tags) : current.tags,
       colors: body.colors ? parseColorList(body.colors) : current.colors,
       sizes: body.sizes ? parseStringList(body.sizes) : current.sizes,
