@@ -8,7 +8,7 @@ import { supabase } from "./supabase/client";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { loadPersistedState, persistState, type PersistedState } from "@/app/lib/store/persistence";
 
-const PRODUCTS_PAGE_SIZE = 12;
+const PRODUCTS_PAGE_SIZE = 100;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
