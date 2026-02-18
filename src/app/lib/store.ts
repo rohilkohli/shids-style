@@ -41,6 +41,60 @@ type ProductPageResponse = {
   limit: number;
 };
 
+type ProductRow = {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  category: string | null;
+  price: number | null;
+  original_price: number | null;
+  discount_percent: number | null;
+  stock: number | null;
+  rating: number | null;
+  badge: string | null;
+  tags: unknown;
+  colors: unknown;
+  sizes: unknown;
+  highlights: unknown;
+  images: unknown;
+  bestseller: boolean | null;
+  sku: string | null;
+};
+
+const parseJsonArray = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value !== "string" || !value.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const mapProductRow = (row: ProductRow): Product => ({
+  id: row.id,
+  slug: row.slug ?? slugify(row.name),
+  name: row.name,
+  description: row.description ?? "",
+  category: row.category ?? "",
+  price: Number(row.price ?? 0),
+  originalPrice: row.original_price ?? undefined,
+  discountPercent: row.discount_percent ?? undefined,
+  stock: Number(row.stock ?? 0),
+  rating: row.rating ?? undefined,
+  badge: row.badge ?? undefined,
+  tags: parseJsonArray<string>(row.tags),
+  colors: parseJsonArray<Product["colors"][number]>(row.colors),
+  sizes: parseJsonArray<string>(row.sizes),
+  highlights: parseJsonArray<string>(row.highlights),
+  images: parseJsonArray<string>(row.images),
+  bestseller: row.bestseller ?? false,
+  sku: row.sku ?? undefined,
+});
+
 
 export function useCommerceStore() {
   const instanceIdRef = useRef<string | null>(null);
@@ -221,7 +275,22 @@ export function useCommerceStore() {
           setProductsTotal(productsResult.value.count);
           setProductsHasMore(productsResult.value.data.length < productsResult.value.count);
         } else {
-          console.warn("Products sync failed", productsResult.reason);
+          console.warn("Products API sync failed, falling back to direct Supabase query", productsResult.reason);
+          const { data: fallbackProducts, error: fallbackError } = await supabase
+            .from("products")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .range(0, PRODUCTS_PAGE_SIZE - 1);
+
+          if (fallbackError) {
+            console.warn("Products fallback sync failed", fallbackError.message);
+          } else {
+            const mappedFallbackProducts = (fallbackProducts ?? []).map((row) => mapProductRow(row as ProductRow));
+            setProducts(mappedFallbackProducts);
+            setProductsPage(1);
+            setProductsTotal(mappedFallbackProducts.length);
+            setProductsHasMore(mappedFallbackProducts.length >= PRODUCTS_PAGE_SIZE);
+          }
         }
 
         if (ordersResult.status === "fulfilled") {
