@@ -186,21 +186,24 @@ export function useCommerceStore() {
   }, []);
 
   const fetchAllProductsFromApi = useCallback(async (): Promise<ProductPageResponse> => {
-    const firstPage = await apiRequest<ProductPageResponse>(
-      `/api/products?page=1&limit=${PRODUCTS_FETCH_BATCH_SIZE}`,
-      { cache: "no-store" }
-    );
+    const allProducts: Product[] = [];
+    let page = 1;
+    let reportedCount = 0;
 
-    const totalCount = firstPage.count;
-    const totalPages = Math.max(1, Math.ceil(totalCount / firstPage.limit));
-    const allProducts = [...firstPage.data];
-
-    for (let page = 2; page <= totalPages; page += 1) {
+    while (true) {
       const pageData = await apiRequest<ProductPageResponse>(
         `/api/products?page=${page}&limit=${PRODUCTS_FETCH_BATCH_SIZE}`,
         { cache: "no-store" }
       );
+
       allProducts.push(...pageData.data);
+      reportedCount = Math.max(reportedCount, Number(pageData.count ?? 0));
+
+      if (pageData.data.length < PRODUCTS_FETCH_BATCH_SIZE) {
+        break;
+      }
+
+      page += 1;
     }
 
     const dedupedProducts = allProducts.filter(
@@ -209,8 +212,8 @@ export function useCommerceStore() {
 
     return {
       data: dedupedProducts,
-      count: totalCount,
-      page: totalPages,
+      count: Math.max(reportedCount, dedupedProducts.length),
+      page,
       limit: PRODUCTS_FETCH_BATCH_SIZE,
     };
   }, [apiRequest]);
