@@ -205,21 +205,36 @@ export function useCommerceStore() {
     if (!ready) return;
     let cancelled = false;
     const syncFromApi = async () => {
+      const discountsUrl = user?.role === "admin" ? "/api/discounts" : "/api/discounts?active=true";
       try {
         setProductsLoading(true);
-        const discountsUrl = user?.role === "admin" ? "/api/discounts" : "/api/discounts?active=true";
-        const [nextProductsPage, nextOrders, nextDiscounts] = await Promise.all([
+        const [productsResult, ordersResult, discountsResult] = await Promise.allSettled([
           apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`, { cache: "no-store" }),
           apiRequest<Order[]>("/api/orders"),
           apiRequest<DiscountCode[]>(discountsUrl),
         ]);
         if (cancelled) return;
-        setProducts(nextProductsPage.data);
-        setProductsPage(nextProductsPage.page);
-        setProductsTotal(nextProductsPage.count);
-        setProductsHasMore(nextProductsPage.data.length < nextProductsPage.count);
-        setOrders(nextOrders);
-        setDiscountCodes(nextDiscounts);
+
+        if (productsResult.status === "fulfilled") {
+          setProducts(productsResult.value.data);
+          setProductsPage(productsResult.value.page);
+          setProductsTotal(productsResult.value.count);
+          setProductsHasMore(productsResult.value.data.length < productsResult.value.count);
+        } else {
+          console.warn("Products sync failed", productsResult.reason);
+        }
+
+        if (ordersResult.status === "fulfilled") {
+          setOrders(ordersResult.value);
+        } else {
+          console.warn("Orders sync failed", ordersResult.reason);
+        }
+
+        if (discountsResult.status === "fulfilled") {
+          setDiscountCodes(discountsResult.value);
+        } else {
+          console.warn("Discounts sync failed", discountsResult.reason);
+        }
       } catch (error) {
         console.warn("Backend sync failed", error);
       } finally {
