@@ -8,7 +8,8 @@ import { supabase } from "./supabase/client";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { loadPersistedState, persistState, type PersistedState } from "@/app/lib/store/persistence";
 
-const PRODUCTS_PAGE_SIZE = 100;
+const PRODUCTS_PAGE_SIZE = 12;
+const PRODUCTS_FETCH_BATCH_SIZE = 100;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -184,6 +185,36 @@ export function useCommerceStore() {
     return data.data;
   }, []);
 
+  const fetchAllProductsFromApi = useCallback(async (): Promise<ProductPageResponse> => {
+    const firstPage = await apiRequest<ProductPageResponse>(
+      `/api/products?page=1&limit=${PRODUCTS_FETCH_BATCH_SIZE}`,
+      { cache: "no-store" }
+    );
+
+    const totalCount = firstPage.count;
+    const totalPages = Math.max(1, Math.ceil(totalCount / firstPage.limit));
+    const allProducts = [...firstPage.data];
+
+    for (let page = 2; page <= totalPages; page += 1) {
+      const pageData = await apiRequest<ProductPageResponse>(
+        `/api/products?page=${page}&limit=${PRODUCTS_FETCH_BATCH_SIZE}`,
+        { cache: "no-store" }
+      );
+      allProducts.push(...pageData.data);
+    }
+
+    const dedupedProducts = allProducts.filter(
+      (product, index, self) => index === self.findIndex((candidate) => candidate.id === product.id)
+    );
+
+    return {
+      data: dedupedProducts,
+      count: totalCount,
+      page: totalPages,
+      limit: PRODUCTS_FETCH_BATCH_SIZE,
+    };
+  }, [apiRequest]);
+
   useEffect(() => {
     const handler = (event: Event) => {
       const custom = event as CustomEvent<{ sourceId: string; state: PersistedState }>;
@@ -263,7 +294,7 @@ export function useCommerceStore() {
       try {
         setProductsLoading(true);
         const [productsResult, ordersResult, discountsResult] = await Promise.allSettled([
-          apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`, { cache: "no-store" }),
+          fetchAllProductsFromApi(),
           apiRequest<Order[]>("/api/orders"),
           apiRequest<DiscountCode[]>(discountsUrl),
         ]);
@@ -276,20 +307,40 @@ export function useCommerceStore() {
           setProductsHasMore(productsResult.value.data.length < productsResult.value.count);
         } else {
           console.warn("Products API sync failed, falling back to direct Supabase query", productsResult.reason);
-          const { data: fallbackProducts, error: fallbackError } = await supabase
-            .from("products")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .range(0, PRODUCTS_PAGE_SIZE - 1);
+          const fallbackRows: ProductRow[] = [];
+          let fallbackOffset = 0;
+          let fallbackErrorMessage: string | null = null;
 
-          if (fallbackError) {
-            console.warn("Products fallback sync failed", fallbackError.message);
+          while (true) {
+            const { data: fallbackProducts, error: fallbackError } = await supabase
+              .from("products")
+              .select("*")
+              .order("created_at", { ascending: false })
+              .range(fallbackOffset, fallbackOffset + PRODUCTS_FETCH_BATCH_SIZE - 1);
+
+            if (fallbackError) {
+              fallbackErrorMessage = fallbackError.message;
+              break;
+            }
+
+            const batch = (fallbackProducts ?? []) as ProductRow[];
+            fallbackRows.push(...batch);
+
+            if (batch.length < PRODUCTS_FETCH_BATCH_SIZE) {
+              break;
+            }
+
+            fallbackOffset += PRODUCTS_FETCH_BATCH_SIZE;
+          }
+
+          if (fallbackErrorMessage) {
+            console.warn("Products fallback sync failed", fallbackErrorMessage);
           } else {
-            const mappedFallbackProducts = (fallbackProducts ?? []).map((row) => mapProductRow(row as ProductRow));
+            const mappedFallbackProducts = fallbackRows.map((row) => mapProductRow(row));
             setProducts(mappedFallbackProducts);
-            setProductsPage(1);
+            setProductsPage(Math.max(1, Math.ceil(mappedFallbackProducts.length / PRODUCTS_PAGE_SIZE)));
             setProductsTotal(mappedFallbackProducts.length);
-            setProductsHasMore(mappedFallbackProducts.length >= PRODUCTS_PAGE_SIZE);
+            setProductsHasMore(false);
           }
         }
 
@@ -316,7 +367,7 @@ export function useCommerceStore() {
     return () => {
       cancelled = true;
     };
-  }, [apiRequest, ready, user?.role]);
+  }, [fetchAllProductsFromApi, apiRequest, ready, user?.role]);
 
   useEffect(() => {
     if (!ready) return;
@@ -579,7 +630,7 @@ export function useCommerceStore() {
     setOrders((prev: Order[]) => [...prev, created]);
     setCart([]);
     try {
-      const refreshed = await apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`);
+      const refreshed = await fetchAllProductsFromApi();
       setProducts(refreshed.data);
       setProductsPage(refreshed.page);
       setProductsTotal(refreshed.count);
