@@ -9,6 +9,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { loadPersistedState, persistState, type PersistedState } from "@/app/lib/store/persistence";
 
 const PRODUCTS_PAGE_SIZE = 12;
+const PRODUCTS_FETCH_BATCH_SIZE = 100;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -40,6 +41,60 @@ type ProductPageResponse = {
   page: number;
   limit: number;
 };
+
+type ProductRow = {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  category: string | null;
+  price: number | null;
+  original_price: number | null;
+  discount_percent: number | null;
+  stock: number | null;
+  rating: number | null;
+  badge: string | null;
+  tags: unknown;
+  colors: unknown;
+  sizes: unknown;
+  highlights: unknown;
+  images: unknown;
+  bestseller: boolean | null;
+  sku: string | null;
+};
+
+const parseJsonArray = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value !== "string" || !value.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const mapProductRow = (row: ProductRow): Product => ({
+  id: row.id,
+  slug: row.slug ?? slugify(row.name),
+  name: row.name,
+  description: row.description ?? "",
+  category: row.category ?? "",
+  price: Number(row.price ?? 0),
+  originalPrice: row.original_price ?? undefined,
+  discountPercent: row.discount_percent ?? undefined,
+  stock: Number(row.stock ?? 0),
+  rating: row.rating ?? undefined,
+  badge: row.badge ?? undefined,
+  tags: parseJsonArray<string>(row.tags),
+  colors: parseJsonArray<Product["colors"][number]>(row.colors),
+  sizes: parseJsonArray<string>(row.sizes),
+  highlights: parseJsonArray<string>(row.highlights),
+  images: parseJsonArray<string>(row.images),
+  bestseller: row.bestseller ?? false,
+  sku: row.sku ?? undefined,
+});
 
 
 export function useCommerceStore() {
@@ -130,6 +185,39 @@ export function useCommerceStore() {
     return data.data;
   }, []);
 
+  const fetchAllProductsFromApi = useCallback(async (): Promise<ProductPageResponse> => {
+    const allProducts: Product[] = [];
+    let page = 1;
+    let reportedCount = 0;
+
+    while (true) {
+      const pageData = await apiRequest<ProductPageResponse>(
+        `/api/products?page=${page}&limit=${PRODUCTS_FETCH_BATCH_SIZE}`,
+        { cache: "no-store" }
+      );
+
+      allProducts.push(...pageData.data);
+      reportedCount = Math.max(reportedCount, Number(pageData.count ?? 0));
+
+      if (pageData.data.length < PRODUCTS_FETCH_BATCH_SIZE) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    const dedupedProducts = allProducts.filter(
+      (product, index, self) => index === self.findIndex((candidate) => candidate.id === product.id)
+    );
+
+    return {
+      data: dedupedProducts,
+      count: Math.max(reportedCount, dedupedProducts.length),
+      page,
+      limit: PRODUCTS_FETCH_BATCH_SIZE,
+    };
+  }, [apiRequest]);
+
   useEffect(() => {
     const handler = (event: Event) => {
       const custom = event as CustomEvent<{ sourceId: string; state: PersistedState }>;
@@ -205,21 +293,71 @@ export function useCommerceStore() {
     if (!ready) return;
     let cancelled = false;
     const syncFromApi = async () => {
+      const discountsUrl = user?.role === "admin" ? "/api/discounts" : "/api/discounts?active=true";
       try {
         setProductsLoading(true);
-        const discountsUrl = user?.role === "admin" ? "/api/discounts" : "/api/discounts?active=true";
-        const [nextProductsPage, nextOrders, nextDiscounts] = await Promise.all([
-          apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`, { cache: "no-store" }),
+        const [productsResult, ordersResult, discountsResult] = await Promise.allSettled([
+          fetchAllProductsFromApi(),
           apiRequest<Order[]>("/api/orders"),
           apiRequest<DiscountCode[]>(discountsUrl),
         ]);
         if (cancelled) return;
-        setProducts(nextProductsPage.data);
-        setProductsPage(nextProductsPage.page);
-        setProductsTotal(nextProductsPage.count);
-        setProductsHasMore(nextProductsPage.data.length < nextProductsPage.count);
-        setOrders(nextOrders);
-        setDiscountCodes(nextDiscounts);
+
+        if (productsResult.status === "fulfilled") {
+          setProducts(productsResult.value.data);
+          setProductsPage(productsResult.value.page);
+          setProductsTotal(productsResult.value.count);
+          setProductsHasMore(productsResult.value.data.length < productsResult.value.count);
+        } else {
+          console.warn("Products API sync failed, falling back to direct Supabase query", productsResult.reason);
+          const fallbackRows: ProductRow[] = [];
+          let fallbackOffset = 0;
+          let fallbackErrorMessage: string | null = null;
+
+          while (true) {
+            const { data: fallbackProducts, error: fallbackError } = await supabase
+              .from("products")
+              .select("*")
+              .order("created_at", { ascending: false })
+              .range(fallbackOffset, fallbackOffset + PRODUCTS_FETCH_BATCH_SIZE - 1);
+
+            if (fallbackError) {
+              fallbackErrorMessage = fallbackError.message;
+              break;
+            }
+
+            const batch = (fallbackProducts ?? []) as ProductRow[];
+            fallbackRows.push(...batch);
+
+            if (batch.length < PRODUCTS_FETCH_BATCH_SIZE) {
+              break;
+            }
+
+            fallbackOffset += PRODUCTS_FETCH_BATCH_SIZE;
+          }
+
+          if (fallbackErrorMessage) {
+            console.warn("Products fallback sync failed", fallbackErrorMessage);
+          } else {
+            const mappedFallbackProducts = fallbackRows.map((row) => mapProductRow(row));
+            setProducts(mappedFallbackProducts);
+            setProductsPage(Math.max(1, Math.ceil(mappedFallbackProducts.length / PRODUCTS_PAGE_SIZE)));
+            setProductsTotal(mappedFallbackProducts.length);
+            setProductsHasMore(false);
+          }
+        }
+
+        if (ordersResult.status === "fulfilled") {
+          setOrders(ordersResult.value);
+        } else {
+          console.warn("Orders sync failed", ordersResult.reason);
+        }
+
+        if (discountsResult.status === "fulfilled") {
+          setDiscountCodes(discountsResult.value);
+        } else {
+          console.warn("Discounts sync failed", discountsResult.reason);
+        }
       } catch (error) {
         console.warn("Backend sync failed", error);
       } finally {
@@ -232,7 +370,7 @@ export function useCommerceStore() {
     return () => {
       cancelled = true;
     };
-  }, [apiRequest, ready, user?.role]);
+  }, [fetchAllProductsFromApi, apiRequest, ready, user?.role]);
 
   useEffect(() => {
     if (!ready) return;
@@ -495,7 +633,7 @@ export function useCommerceStore() {
     setOrders((prev: Order[]) => [...prev, created]);
     setCart([]);
     try {
-      const refreshed = await apiRequest<ProductPageResponse>(`/api/products?page=1&limit=${PRODUCTS_PAGE_SIZE}`);
+      const refreshed = await fetchAllProductsFromApi();
       setProducts(refreshed.data);
       setProductsPage(refreshed.page);
       setProductsTotal(refreshed.count);
