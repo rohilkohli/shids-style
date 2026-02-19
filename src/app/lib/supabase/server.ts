@@ -7,11 +7,13 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
   "";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Supabase server env vars are missing.");
-}
+export const isSupabaseServerConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export async function createSupabaseServerClient() {
+  if (!isSupabaseServerConfigured) {
+    throw new Error("Supabase server env vars are missing.");
+  }
+
   const cookieStore = await cookies();
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { defaultProducts } from "@/app/lib/data";
-import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { isSupabaseAdminConfigured, supabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Product } from "@/app/lib/types";
 import { generateProductSchema } from "@/app/lib/seo";
 import ProductDetailClient from "./ProductDetailClient";
@@ -63,6 +63,8 @@ const mapRowToProduct = (row: ProductRow): Product => ({
 
 async function getProductBySlug(slug: string): Promise<Product | null> {
   const fallback = defaultProducts.find((product) => product.slug === slug) ?? null;
+
+  if (!isSupabaseAdminConfigured) return fallback;
 
   const { data } = await supabaseAdmin
     .from("products")
