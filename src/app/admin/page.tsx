@@ -219,46 +219,74 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!ready || !user || user.role !== "admin") return;
+
+    const controller = new AbortController();
+
     const loadProfiles = async () => {
       try {
-        const response = await fetch("/api/users");
+        const response = await fetch("/api/users", { signal: controller.signal, cache: "no-store" });
         const json = await response.json();
         if (response.ok && json?.ok) {
           setProfiles(json.data as ProfileSummary[]);
         }
       } catch (error) {
-        console.warn("Failed to load profiles", error);
+        if ((error as Error).name !== "AbortError") {
+          console.warn("Failed to load profiles", error);
+        }
       }
     };
+
     loadProfiles();
+
+    return () => controller.abort();
   }, [ready, user]);
 
   useEffect(() => {
     if (currentView !== "hero" && currentView !== "newsletter" && currentView !== "contact") return;
+
+    const controller = new AbortController();
+
     const loadMarketing = async () => {
-      try {
-        const [heroRes, newsletterRes, contactRes] = await Promise.all([
-          fetch("/api/hero"),
-          fetch("/api/newsletter"),
-          fetch("/api/contact"),
-        ]);
-        const heroJson = await heroRes.json();
-        const newsletterJson = await newsletterRes.json();
-        const contactJson = await contactRes.json();
-        if (heroJson?.ok) {
-          setHeroItems(heroJson.data as HeroEntry[]);
+      const [heroResult, newsletterResult, contactResult] = await Promise.allSettled([
+        fetch("/api/hero", { signal: controller.signal, cache: "no-store" }),
+        fetch("/api/newsletter", { signal: controller.signal, cache: "no-store" }),
+        fetch("/api/contact", { signal: controller.signal, cache: "no-store" }),
+      ]);
+
+      const loadItem = async <T,>(
+        result: PromiseSettledResult<Response>,
+        setData: (value: T) => void,
+        label: string
+      ) => {
+        if (result.status === "rejected") {
+          if ((result.reason as Error)?.name !== "AbortError") {
+            console.warn(`Failed to load ${label}`, result.reason);
+          }
+          return;
         }
-        if (newsletterJson?.ok) {
-          setNewsletterEmails(newsletterJson.data as NewsletterEntry[]);
+
+        try {
+          const json = await result.value.json();
+          if (result.value.ok && json?.ok) {
+            setData(json.data as T);
+          }
+        } catch (error) {
+          if ((error as Error).name !== "AbortError") {
+            console.warn(`Failed to parse ${label}`, error);
+          }
         }
-        if (contactJson?.ok) {
-          setContactMessages(contactJson.data as ContactMessage[]);
-        }
-      } catch (error) {
-        console.warn("Failed to load marketing data", error);
-      }
+      };
+
+      await Promise.all([
+        loadItem<HeroEntry[]>(heroResult, setHeroItems, "hero items"),
+        loadItem<NewsletterEntry[]>(newsletterResult, setNewsletterEmails, "newsletter entries"),
+        loadItem<ContactMessage[]>(contactResult, setContactMessages, "contact messages"),
+      ]);
     };
+
     loadMarketing();
+
+    return () => controller.abort();
   }, [currentView]);
 
   const loadCategories = async () => {

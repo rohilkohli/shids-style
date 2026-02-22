@@ -11,7 +11,15 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
   "";
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const isSupabaseAuthConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+function getSupabaseAuthClient() {
+  if (!isSupabaseAuthConfigured) {
+    throw new Error("Supabase auth env vars are missing.");
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey);
+}
 
 type ProfileRow = {
   id: string;
@@ -36,6 +44,8 @@ export async function POST(request: NextRequest) {
   }
 
   const { email, password } = parsed.data;
+
+  const supabase = getSupabaseAuthClient();
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
