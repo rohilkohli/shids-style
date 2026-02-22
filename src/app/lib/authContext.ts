@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/app/lib/supabase/server";
 import { supabaseAdmin } from "@/app/lib/supabaseAdmin";
+import type { User } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 
 export type AuthContext = {
@@ -9,11 +10,17 @@ export type AuthContext = {
 };
 
 export async function resolveAuthContext(request: NextRequest): Promise<AuthContext | null> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  let resolvedUser = user;
+  let resolvedUser: User | null = null;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    resolvedUser = user;
+  } catch {
+    // Continue with bearer-token fallback when server-cookie auth is unavailable.
+  }
 
   if (!resolvedUser) {
     const authHeader = request.headers.get("Authorization");
