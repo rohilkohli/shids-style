@@ -322,7 +322,7 @@ export default function AdminPage() {
 
   const normalizeCategory = (value: string) => value.trim().toLowerCase();
 
-  const supportsVariantsForCategory = (category: string) => normalizeCategory(category) === "apparel";
+  const supportsVariantsForCategory = (category: string) => normalizeCategory(category).includes("apparel");
 
   const variantsEnabled = supportsVariantsForCategory(productForm.category ?? "");
 
