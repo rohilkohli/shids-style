@@ -324,7 +324,19 @@ export default function AdminPage() {
 
   const supportsVariantsForCategory = (category: string) => normalizeCategory(category).includes("apparel");
 
-  const variantsEnabled = supportsVariantsForCategory(productForm.category ?? "");
+  const sizeTokens = useMemo(() => {
+    if (typeof productForm.sizes !== "string") return [];
+    return productForm.sizes
+      .split(/[\s,]+/)
+      .map((size) => size.trim())
+      .filter(Boolean);
+  }, [productForm.sizes]);
+
+  const categorySupportsVariants = supportsVariantsForCategory(productForm.category ?? "");
+  const hasSizeDrivenVariants = sizeTokens.length > 0;
+  const hasExistingVariants = (productForm.variants?.length ?? 0) > 0;
+
+  const variantsEnabled = categorySupportsVariants || hasSizeDrivenVariants || hasExistingVariants;
 
   const productsByCategory = useMemo(() => {
     return products.reduce<Record<string, Product[]>>((acc, product) => {
@@ -336,14 +348,14 @@ export default function AdminPage() {
   }, [products]);
 
   useEffect(() => {
-    if (variantsEnabled) return;
+    if (categorySupportsVariants || hasSizeDrivenVariants) return;
     if ((productForm.variants?.length ?? 0) === 0) return;
 
     setProductForm((prev) => ({
       ...prev,
       variants: [],
     }));
-  }, [variantsEnabled, productForm.variants]);
+  }, [categorySupportsVariants, hasSizeDrivenVariants, productForm.variants]);
 
   const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
 
