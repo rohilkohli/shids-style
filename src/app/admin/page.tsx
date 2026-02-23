@@ -320,14 +320,42 @@ export default function AdminPage() {
     return Array.from(new Set(names)).filter(Boolean);
   }, [categoryItems, products]);
 
+  const normalizeCategory = (value: string) => value.trim().toLowerCase();
+
+  const supportsVariantsForCategory = (category: string) => normalizeCategory(category).includes("apparel");
+
+  const sizeTokens = useMemo(() => {
+    if (typeof productForm.sizes !== "string") return [];
+    return productForm.sizes
+      .split(/[\s,]+/)
+      .map((size) => size.trim())
+      .filter(Boolean);
+  }, [productForm.sizes]);
+
+  const categorySupportsVariants = supportsVariantsForCategory(productForm.category ?? "");
+  const hasSizeDrivenVariants = sizeTokens.length > 0;
+  const hasExistingVariants = (productForm.variants?.length ?? 0) > 0;
+
+  const variantsEnabled = categorySupportsVariants || hasSizeDrivenVariants || hasExistingVariants;
+
   const productsByCategory = useMemo(() => {
     return products.reduce<Record<string, Product[]>>((acc, product) => {
-      const key = product.category;
+      const key = normalizeCategory(product.category);
       if (!acc[key]) acc[key] = [];
       acc[key].push(product);
       return acc;
     }, {});
   }, [products]);
+
+  useEffect(() => {
+    if (categorySupportsVariants || hasSizeDrivenVariants) return;
+    if ((productForm.variants?.length ?? 0) === 0) return;
+
+    setProductForm((prev) => ({
+      ...prev,
+      variants: [],
+    }));
+  }, [categorySupportsVariants, hasSizeDrivenVariants, productForm.variants]);
 
   const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
 
@@ -807,7 +835,7 @@ export default function AdminPage() {
         // include variants for creation if present
         const createPayload = {
           ...payload,
-          ...(productForm.variants && productForm.variants.length > 0
+          ...(variantsEnabled && productForm.variants && productForm.variants.length > 0
             ? { variants: productForm.variants.map((v) => ({ color: v.color, size: v.size, stock: Number(v.stock || 0) })) }
             : {}),
         };
@@ -837,9 +865,9 @@ export default function AdminPage() {
       };
       const updatesWithVariants = {
         ...updates,
-        ...(productForm.variants
+        ...(variantsEnabled && productForm.variants
           ? { variants: productForm.variants.map((v) => ({ color: v.color, size: v.size, stock: Number(v.stock || 0) })) }
-          : {}),
+          : { variants: [] }),
       };
       try {
         const updated = await updateProduct(selectedProduct.id, updatesWithVariants as Partial<Product> & { variants?: Partial<Variant>[] });
@@ -1654,7 +1682,7 @@ export default function AdminPage() {
                                   }
                                 >
                                   <option value="">No featured product</option>
-                                  {(productsByCategory[category.name]?.length ? productsByCategory[category.name] : products).map((product) => (
+                                  {(productsByCategory[normalizeCategory(category.name)] ?? []).map((product) => (
                                     <option key={product.id} value={product.id}>
                                       {product.name}
                                     </option>
@@ -2367,11 +2395,14 @@ export default function AdminPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-sm font-medium text-gray-900">Variants</h3>
-                        <p className="text-xs text-gray-500">Manage stock info for specific combinations.</p>
+                        <p className="text-xs text-gray-500">Only apparel products use variants. Adornments use global quantity and in-stock status.</p>
                       </div>
                       <button
                         type="button"
+                        disabled={!variantsEnabled}
                         onClick={() => {
+                          if (!variantsEnabled) return;
+
                           // Generate variants logic
                           const sizeList = typeof productForm.sizes === 'string'
                             ? productForm.sizes.split(/[,\s]+/).filter(Boolean)
@@ -2380,7 +2411,7 @@ export default function AdminPage() {
 
                           const newVariants: Variant[] = [];
 
-                          // If no options, do nothing or user Global Stock
+                          // If no options, do nothing or use Global Stock
                           if (sizeList.length === 0 && colorList.length === 0) return;
 
                           // Cross product
@@ -2420,13 +2451,13 @@ export default function AdminPage() {
 
                           setProductForm(prev => ({ ...prev, variants: newVariants }));
                         }}
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:cursor-not-allowed disabled:text-gray-300"
                       >
                         Generate / Refresh Variants
                       </button>
                     </div>
 
-                    {productForm.variants && productForm.variants.length > 0 ? (
+                    {variantsEnabled && productForm.variants && productForm.variants.length > 0 ? (
                       <div className="rounded-xl border border-gray-200 overflow-hidden">
                         <table className="w-full text-sm text-left">
                           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
@@ -2480,7 +2511,9 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <div className="text-center p-6 border-2 border-dashed border-gray-100 rounded-xl text-xs text-gray-400">
-                                    Add colors/sizes and click &quot;Generate&quot; to manage generic combinations.
+                        {variantsEnabled
+                          ? "Add colors/sizes and click \"Generate\" to manage apparel combinations."
+                          : "Variants are disabled for this category. Use global quantity for adornments and non-apparel products."}
                       </div>
                     )}
                   </div>

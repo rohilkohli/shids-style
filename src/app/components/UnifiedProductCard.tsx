@@ -61,10 +61,11 @@ export default function UnifiedProductCard({
   const computedDiscount = typeof discountPercent === "number" ? discountPercent : 0;
   // Variant-aware stock summary
   const variantCount = variants?.length ?? 0;
+  const hasVariants = variantCount > 0;
   const totalVariantStock = variants?.reduce((s, v) => s + (v.stock ?? 0), 0) ?? 0;
-  const singleVariant = variantCount === 1;
-  const lowStock = singleVariant ? (stock > 0 && stock <= 3) : (totalVariantStock > 0 && totalVariantStock <= 3);
-  const outOfStock = singleVariant ? stock === 0 : totalVariantStock === 0;
+  const effectiveStock = hasVariants ? totalVariantStock : stock;
+  const lowStock = effectiveStock > 0 && effectiveStock <= 3;
+  const outOfStock = effectiveStock <= 0;
 
   const displayColors = colors ?? [];
 
@@ -261,7 +262,7 @@ export default function UnifiedProductCard({
           ) : (
             lowStock && (
               <span className="text-[10px] sm:text-[11px] font-semibold text-amber-700">
-                Only {stock} left
+                Only {effectiveStock} left
               </span>
             )
           )}
