@@ -622,6 +622,12 @@ create table if not exists public.rate_limits (
   updated_at timestamptz not null default now()
 );
 
+alter table public.rate_limits enable row level security;
+
+revoke all on public.rate_limits from public;
+revoke all on public.rate_limits from anon;
+revoke all on public.rate_limits from authenticated;
+
 create or replace function public.check_rate_limit(
   p_identifier text,
   p_limit int,
